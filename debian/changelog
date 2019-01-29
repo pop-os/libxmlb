@@ -1,0 +1,5 @@
+libxmlb (0.1.6-1) unstable; urgency=low
+
+  * Initial release. Closes: #9270777
+
+ -- Mario Limonciello <mario.limonciello@dell.com>  Mon, 28 Jan 2019 19:40:37 -0600
