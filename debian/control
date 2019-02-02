@@ -12,6 +12,7 @@ Build-Depends: debhelper (>=9),
 	       libglib2.0-dev,
 	       libgirepository1.0-dev,
 	       meson,
+	       shared-mime-info,
 	       uuid-dev,
 Standards-Version: 3.9.8
 Homepage: https://github.com/hughsie/libxmlb
