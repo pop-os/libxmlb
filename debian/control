@@ -14,7 +14,7 @@ Build-Depends: debhelper (>=9),
 	       meson,
 	       shared-mime-info,
 	       uuid-dev,
-Standards-Version: 3.9.8
+Standards-Version: 4.3.0
 Homepage: https://github.com/hughsie/libxmlb
 Vcs-Git: https://salsa.debian.org/efi-team/libxmlb.git
 Vcs-Browser: https://salsa.debian.org/efi-team/libxmlb
