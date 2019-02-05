@@ -1,7 +1,7 @@
 Source: libxmlb
 Section: libs
 Priority: optional
-Maintainer: Debian EFI <debian-efi@lists.debian.org>
+Maintainer: Debian EFI team <debian-efi@lists.debian.org>
 Uploaders: Steve McIntyre <93sam@debian.org>,
            Matthias Klumpp <mak@debian.org>,
            Mario Limonciello <mario.limonciello@dell.com>
