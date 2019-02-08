@@ -1,0 +1,29 @@
+From 74a356ab1fa8e5d7efcfe13cf78e7bfeab3c2a39 Mon Sep 17 00:00:00 2001
+From: Richard Hughes <richard@hughsie.com>
+Date: Fri, 8 Feb 2019 14:53:40 +0000
+Subject: [PATCH 1/2] Only run the speed tests when using '-m perf'
+
+On slow emulated architectures this means the self tests take more than 30s
+and timeout with an error.
+
+Fixes half of https://github.com/hughsie/libxmlb/issues/10
+---
+ src/xb-self-test.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/xb-self-test.c b/src/xb-self-test.c
+index 97c0884..cc131eb 100644
+--- a/src/xb-self-test.c
++++ b/src/xb-self-test.c
+@@ -2167,6 +2167,7 @@ main (int argc, char **argv)
+ 	g_test_add_func ("/libxmlb/xpath-parent-subnode", xb_xpath_parent_subnode_func);
+ 	g_test_add_func ("/libxmlb/multiple-roots", xb_builder_multiple_roots_func);
+ 	g_test_add_func ("/libxmlb/threading", xb_threading_func);
+-	g_test_add_func ("/libxmlb/speed", xb_speed_func);
++	if (g_test_perf ())
++		g_test_add_func ("/libxmlb/speed", xb_speed_func);
+ 	return g_test_run ();
+ }
+-- 
+2.7.4
+
