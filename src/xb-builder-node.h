@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_BUILDER_NODE_H
-#define __XB_BUILDER_NODE_H
-
-G_BEGIN_DECLS
+#pragma once
 
 #include <glib-object.h>
 
 #include "xb-node.h"
+
+G_BEGIN_DECLS
 
 #define XB_TYPE_BUILDER_NODE (xb_builder_node_get_type ())
 G_DECLARE_DERIVABLE_TYPE (XbBuilderNode, xb_builder_node, XB, BUILDER_NODE, GObject)
@@ -105,5 +104,3 @@ gchar		*xb_builder_node_export		(XbBuilderNode		*self,
 						 GError			**error);
 
 G_END_DECLS
-
-#endif /* __XB_BUILDER_NODE_H */

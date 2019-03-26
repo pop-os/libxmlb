@@ -4,15 +4,14 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_NODE_QUERY_H
-#define __XB_NODE_QUERY_H
-
-G_BEGIN_DECLS
+#pragma once
 
 #include <glib-object.h>
 
 #include "xb-query.h"
 #include "xb-node.h"
+
+G_BEGIN_DECLS
 
 GPtrArray	*xb_node_query			(XbNode		*self,
 						 const gchar	*xpath,
@@ -43,6 +42,3 @@ gchar		*xb_node_query_export		(XbNode		*self,
 						 GError		**error);
 
 G_END_DECLS
-
-#endif /* __XB_NODE_QUERY_H */
-

@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_NODE_H
-#define __XB_NODE_H
-
-G_BEGIN_DECLS
+#pragma once
 
 #include <glib-object.h>
+
+G_BEGIN_DECLS
 
 #define XB_TYPE_NODE (xb_node_get_type ())
 G_DECLARE_DERIVABLE_TYPE (XbNode, xb_node, XB, NODE, GObject)
@@ -73,6 +72,3 @@ guint		 xb_node_get_depth		(XbNode		*self);
 
 
 G_END_DECLS
-
-#endif /* __XB_NODE_H */
-

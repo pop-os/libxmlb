@@ -4,14 +4,15 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_SILO_PRIVATE_H__
-#define __XB_SILO_PRIVATE_H__
+#pragma once
 
 #include <uuid.h>
 
 #include "xb-machine.h"
 #include "xb-node.h"
 #include "xb-silo.h"
+
+G_BEGIN_DECLS
 
 /* for old versions of libuuid */
 #ifndef UUID_STR_LEN
@@ -96,4 +97,4 @@ gboolean	 xb_silo_is_empty		(XbSilo		*self);
 void		 xb_silo_uninvalidate		(XbSilo		*self);
 XbSiloProfileFlags xb_silo_get_profile_flags	(XbSilo		*self);
 
-#endif /* __XB_SILO_PRIVATE_H__ */
+G_END_DECLS

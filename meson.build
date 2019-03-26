@@ -1,5 +1,5 @@
 project('libxmlb', 'c',
-  version : '0.1.6',
+  version : '0.1.8',
   license : 'LGPL-2.1+',
   meson_version : '>=0.47.0',
   default_options : ['warning_level=2', 'c_std=c99'],
@@ -124,6 +124,7 @@ endif
 
 gnome = import('gnome')
 
+conf.set('libexecdir', libexecdir)
 conf.set_quoted('PACKAGE_NAME', meson.project_name())
 conf.set_quoted('VERSION', meson.project_version())
 configure_file(
@@ -134,6 +135,7 @@ configure_file(
 python = import('python')
 python3 = python.find_installation('python3')
 
+subdir('data')
 subdir('src')
 if get_option('gtkdoc')
   gtkdocscan = find_program('gtkdoc-scan', required : true)

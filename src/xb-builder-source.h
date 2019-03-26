@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_BUILDER_SOURCE_H
-#define __XB_BUILDER_SOURCE_H
+#pragma once
 
 #include <gio/gio.h>
 
 #include "xb-builder-fixup.h"
 #include "xb-builder-node.h"
+#include "xb-builder-source-ctx.h"
 
 G_BEGIN_DECLS
 
@@ -55,6 +55,11 @@ typedef GInputStream *(*XbBuilderSourceConverterFunc) (XbBuilderSource	*self,
 						 gpointer		 user_data,
 						 GCancellable		*cancellable,
 						 GError			**error);
+typedef GInputStream *(*XbBuilderSourceAdapterFunc) (XbBuilderSource	*self,
+						 XbBuilderSourceCtx	*ctx,
+						 gpointer		 user_data,
+						 GCancellable		*cancellable,
+						 GError			**error);
 
 XbBuilderSource	*xb_builder_source_new		(void);
 gboolean	 xb_builder_source_load_file	(XbBuilderSource	*self,
@@ -86,8 +91,12 @@ void		 xb_builder_source_add_converter (XbBuilderSource	*self,
 						 const gchar		*content_types,
 						 XbBuilderSourceConverterFunc func,
 						 gpointer		 user_data,
+						 GDestroyNotify		 user_data_free)
+G_DEPRECATED_FOR(xb_builder_source_add_adapter);
+void		 xb_builder_source_add_adapter	(XbBuilderSource	*self,
+						 const gchar		*content_types,
+						 XbBuilderSourceAdapterFunc func,
+						 gpointer		 user_data,
 						 GDestroyNotify		 user_data_free);
 
 G_END_DECLS
-
-#endif /* __XB_BUILDER_SOURCE_H */

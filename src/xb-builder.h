@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_BUILDER_H
-#define __XB_BUILDER_H
+#pragma once
 
 #include <gio/gio.h>
 
@@ -39,6 +38,7 @@ struct _XbBuilderClass {
  * @XB_BUILDER_COMPILE_FLAG_IGNORE_INVALID:	Ignore invalid files without an error
  * @XB_BUILDER_COMPILE_FLAG_SINGLE_LANG:	Only store a single language
  * @XB_BUILDER_COMPILE_FLAG_WATCH_BLOB:		Watch the XMLB file for changes
+ * @XB_BUILDER_COMPILE_FLAG_IGNORE_GUID:	Ignore the cache GUID value
  *
  * The flags for converting to XML.
  **/
@@ -48,6 +48,7 @@ typedef enum {
 	XB_BUILDER_COMPILE_FLAG_IGNORE_INVALID	= 1 << 2,	/* Since: 0.1.0 */
 	XB_BUILDER_COMPILE_FLAG_SINGLE_LANG	= 1 << 3,	/* Since: 0.1.0 */
 	XB_BUILDER_COMPILE_FLAG_WATCH_BLOB	= 1 << 4,	/* Since: 0.1.0 */
+	XB_BUILDER_COMPILE_FLAG_IGNORE_GUID	= 1 << 5,	/* Since: 0.1.7 */
 	/*< private >*/
 	XB_BUILDER_COMPILE_FLAG_LAST
 } XbBuilderCompileFlags;
@@ -76,5 +77,3 @@ void		 xb_builder_set_profile_flags	(XbBuilder		*self,
 						 XbSiloProfileFlags	 profile_flags);
 
 G_END_DECLS
-
-#endif /* __XB_BUILDER_H */

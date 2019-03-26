@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_QUERY_H
-#define __XB_QUERY_H
-
-G_BEGIN_DECLS
+#pragma once
 
 #include <glib-object.h>
 
 #include "xb-silo.h"
+
+G_BEGIN_DECLS
 
 #define XB_TYPE_QUERY (xb_query_get_type ())
 G_DECLARE_DERIVABLE_TYPE (XbQuery, xb_query, XB, QUERY, GObject)
@@ -65,5 +64,3 @@ gboolean	 xb_query_bind_val		(XbQuery	*self,
 						 GError		**error);
 
 G_END_DECLS
-
-#endif /* __XB_QUERY_H */

@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: LGPL-2.1+
  */
 
-#ifndef __XB_SILO_H
-#define __XB_SILO_H
-
-G_BEGIN_DECLS
+#pragma once
 
 #include <glib-object.h>
 
 #include "xb-node.h"
+
+G_BEGIN_DECLS
 
 #define XB_TYPE_SILO (xb_silo_get_type ())
 G_DECLARE_DERIVABLE_TYPE (XbSilo, xb_silo, XB, SILO, GObject)
@@ -95,6 +94,3 @@ void		 xb_silo_set_profile_flags		(XbSilo		*self,
 const gchar	*xb_silo_get_profile_string		(XbSilo		*self);
 
 G_END_DECLS
-
-#endif /* __XB_SILO_H */
-
