@@ -1,3 +1,10 @@
+libxmlb (0.1.8-1) unstable; urgency=medium
+
+  * New upstream version (0.1.8)
+  * Drop all patches: upstream
+
+ -- Mario Limonciello <mario.limonciello@dell.com>  Tue, 26 Mar 2019 15:45:12 -0500
+
 libxmlb (0.1.6-2) unstable; urgency=medium
 
   * Backport two patches that should fix compilation on some Debian port
