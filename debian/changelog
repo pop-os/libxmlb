@@ -1,3 +1,9 @@
+libxmlb (0.1.8-1pop1) bionic; urgency=medium
+
+  * Backport to bionic
+
+ -- Michael Aaron Murphy <michael@system76.com>  Wed, 14 Aug 2019 16:20:35 -0600
+
 libxmlb (0.1.8-1) unstable; urgency=medium
 
   * New upstream version (0.1.8)

@@ -2,3 +2,20 @@
 
 %:
 	dh $@
+
+override_dh_auto_configure:
+	$(eval export PATH=$(shell pwd)/meson/bin:$(PATH))
+	$(eval export PYTHONPATH=$(shell pwd)/meson:$(PYTHONPATH))
+	dh_auto_configure
+
+override_dh_auto_build:
+	$(eval export PYTHONPATH=$(shell pwd)/meson:$(PYTHONPATH))
+	dh_auto_build
+
+override_dh_auto_test:
+	$(eval export PYTHONPATH=$(shell pwd)/meson:$(PYTHONPATH))
+	dh_auto_test
+
+override_dh_auto_install:
+	$(eval export PYTHONPATH=$(shell pwd)/meson:$(PYTHONPATH))
+	dh_auto_install
