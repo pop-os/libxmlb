@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+export CCACHE_DISABLE=1
+
 %:
 	dh $@
 
