@@ -151,7 +151,7 @@ xb_node_get_parent (XbNode *self)
  *
  * Gets the next sibling node for the current node.
  *
- * Returns: (transfer none): a #XbNode, or %NULL
+ * Returns: (transfer full): a #XbNode, or %NULL
  *
  * Since: 0.1.0
  **/
@@ -175,7 +175,7 @@ xb_node_get_next (XbNode *self)
  *
  * Gets the first child node for the current node.
  *
- * Returns: (transfer none): a #XbNode, or %NULL
+ * Returns: (transfer full): a #XbNode, or %NULL
  *
  * Since: 0.1.0
  **/
@@ -260,6 +260,24 @@ xb_node_get_text_as_uint (XbNode *self)
 	if (g_str_has_prefix (tmp, "0x"))
 		return g_ascii_strtoull (tmp + 2, NULL, 16);
 	return g_ascii_strtoull (tmp, NULL, 10);
+}
+
+/**
+ * xb_node_get_tail:
+ * @self: a #XbNode
+ *
+ * Gets the tail data for a specific node.
+ *
+ * Returns: a string, or %NULL for unset
+ *
+ * Since: 0.1.12
+ **/
+const gchar *
+xb_node_get_tail (XbNode *self)
+{
+	XbNodePrivate *priv = GET_PRIVATE (self);
+	g_return_val_if_fail (XB_IS_NODE (self), NULL);
+	return xb_silo_node_get_tail (priv->silo, priv->sn);
 }
 
 /**
@@ -373,6 +391,66 @@ xb_node_export (XbNode *self, XbNodeExportFlags flags, GError **error)
 	if (xml == NULL)
 		return NULL;
 	return g_string_free (xml, FALSE);
+}
+
+/**
+ * xb_node_transmogrify:
+ * @self: a #XbNode
+ * @func_text: (scope call): (allow-none): a #XbBuilderNodeTraverseFunc
+ * @func_tail: (scope call): (allow-none): a #XbBuilderNodeTraverseFunc
+ * @user_data: user pointer to pass to @func, or %NULL
+ *
+ * Traverses a tree starting from @self. It calls the given functions for each
+ * node visited. This allows transmogrification of the source, for instance
+ * converting the XML description to PangoMarkup or even something completely
+ * different like markdown.
+ *
+ * The traversal can be halted at any point by returning TRUE from @func.
+ *
+ * Returns: %TRUE if all nodes were visited
+ *
+ * Since: 0.1.12
+ **/
+gboolean
+xb_node_transmogrify (XbNode *self,
+		      XbNodeTransmogrifyFunc func_text,
+		      XbNodeTransmogrifyFunc func_tail,
+		      gpointer user_data)
+{
+	g_autoptr(XbNode) n = NULL;
+
+	g_return_val_if_fail (XB_IS_NODE (self), FALSE);
+
+	/* all siblings */
+	n = g_object_ref (self);
+	while (n != NULL) {
+		g_autoptr(XbNode) c = NULL;
+		g_autoptr(XbNode) tmp = NULL;
+
+		/* head */
+		if (func_text != NULL) {
+			if (func_text (n, user_data))
+				return FALSE;
+		}
+
+		/* all children */
+		c = xb_node_get_child (n);
+		if (c != NULL) {
+			if (!xb_node_transmogrify (c, func_text, func_tail, user_data))
+				return FALSE;
+		}
+
+		/* tail */
+		if (func_tail != NULL) {
+			if (func_tail (n, user_data))
+				return FALSE;
+		}
+
+		/* next sibling */
+		tmp = xb_node_get_next (n);
+		g_set_object (&n, tmp);
+	}
+	return TRUE;
 }
 
 static void

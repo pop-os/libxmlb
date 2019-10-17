@@ -225,6 +225,8 @@ xb_predicate_func (void)
 		  "text(),'firefox',lower-case(),eq()" },
 		{ "$'a'=$'b'",
 		  "$'a',$'b',eq()" },
+		{ "('a'='b')&&('c'='d')",
+		  "'a','b',eq(),'c','d',eq(),and()" },
 		/* sentinel */
 		{ NULL, NULL }
 	};
@@ -255,6 +257,7 @@ xb_predicate_func (void)
 	for (guint i = 0; invalid[i] != NULL; i++) {
 		g_autoptr(GError) error = NULL;
 		g_autoptr(XbStack) opcodes = NULL;
+		g_debug ("testing %s", invalid[i]);
 		opcodes = xb_machine_parse_full (xb_silo_get_machine (silo),
 						 invalid[i], -1,
 						 XB_MACHINE_PARSE_FLAG_NONE,
@@ -273,9 +276,9 @@ xb_predicate_optimize_func (void)
 		const gchar	*str;
 	} tests[] = {
 		{ "@a='b'",		"'a',attr(),'b',eq()" },
-		{ "'a'<'b'",		"" },		/* to nothing! */
-		{ "999>=123",		"" },		/* to nothing! */
-		{ "not(0)",		"" },		/* to nothing! */
+		{ "'a'<'b'",		"True" },	/* success! */
+		{ "999>=123",		"True" },	/* success! */
+		{ "not(0)",		"True" },	/* success! */
 		{ "lower-case('Fire')",	"'fire'" },
 		{ "upper-case(lower-case('Fire'))",
 					"'FIRE'" },	/* 2nd pass */
@@ -370,7 +373,7 @@ xb_builder_func (void)
 
 	/* check size */
 	bytes = xb_silo_get_bytes (silo);
-	g_assert_cmpint (g_bytes_get_size (bytes), ==, 553);
+	g_assert_cmpint (g_bytes_get_size (bytes), ==, 605);
 }
 
 static void
@@ -455,6 +458,10 @@ xb_builder_chained_adapters_func (void)
 
 	/* import a source file */
 	path = g_build_filename (TESTDIR, "test.xml.gz.gz.gz", NULL);
+	if (!g_file_test (path, G_FILE_TEST_EXISTS)) {
+		g_free (path);
+		path = g_build_filename (INSTALLEDTESTDIR, "test.xml.gz.gz.gz", NULL);
+	}
 	file_src = g_file_new_for_path (path);
 	ret = xb_builder_source_load_file (source, file_src,
 					   XB_BUILDER_SOURCE_FLAG_NONE,
@@ -1162,6 +1169,9 @@ xb_xpath_func (void)
 	"  <component type=\"desktop\">\n"
 	"    <id>gimp.desktop</id>\n"
 	"    <id>org.gnome.Gimp.desktop</id>\n"
+	"    <custom>\n"
+	"      <value key=\"KEY\">TRUE</value>\n"
+	"    </custom>\n"
 	"  </component>\n"
 	"  <component type=\"firmware\">\n"
 	"    <id>org.hughski.ColorHug2.firmware</id>\n"
@@ -1182,6 +1192,27 @@ xb_xpath_func (void)
 	g_assert_no_error (error);
 	g_assert_nonnull (str);
 	g_debug ("\n%s", str);
+
+	/* query with predicate logical and */
+	n = xb_silo_query_first (silo, "components/component/custom/value[(@key='KEY') and (text()='TRUE')]/../../id", &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (n);
+	g_assert_cmpstr (xb_node_get_text (n), ==, "gimp.desktop");
+	g_clear_object (&n);
+
+	/* query with predicate logical and; failure */
+	n = xb_silo_query_first (silo, "components/component/custom/value[(@key='KEY')&&(text()='FALSE')]/../../id", &error);
+	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+	g_assert_null (n);
+	g_clear_error (&error);
+	g_clear_object (&n);
+
+	/* query with predicate logical and, alternate form */
+	n = xb_silo_query_first (silo, "components/component/custom/value[and((@key='KEY'),(text()='TRUE'))]/../../id", &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (n);
+	g_assert_cmpstr (xb_node_get_text (n), ==, "gimp.desktop");
+	g_clear_object (&n);
 
 	/* query that doesn't find anything */
 	n = xb_silo_query_first (silo, "dave", &error);
@@ -1262,7 +1293,7 @@ xb_xpath_func (void)
 	g_assert_cmpstr (xb_node_get_text (n), ==, "gimp.desktop");
 	g_clear_object (&n);
 
-	/* query with attrs that dont exists */
+	/* query with attrs that do not exist */
 	n = xb_silo_query_first (silo, "components/component[not(@dave)]/id", &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (n);
@@ -1404,7 +1435,9 @@ xb_builder_native_lang_func (void)
 	gboolean ret;
 	g_autoptr(GError) error = NULL;
 	g_autofree gchar *str = NULL;
+	g_autofree gchar *tmp = NULL;
 	g_autoptr(XbBuilder) builder = xb_builder_new ();
+	g_autoptr(XbNode) n = NULL;
 	g_autoptr(XbSilo) silo = NULL;
 	const gchar *xml =
 	"<components>\n"
@@ -1412,6 +1445,9 @@ xb_builder_native_lang_func (void)
 	"    <p xml:lang=\"de_DE\">Wilcommen</p>\n"
 	"    <p>Hello</p>\n"
 	"    <p xml:lang=\"fr\">Salut</p>\n"
+	"    <p>Goodbye</p>\n"
+	"    <p xml:lang=\"de_DE\">Auf Wiedersehen</p>\n"
+	"    <p xml:lang=\"fr\">Au revoir</p>\n"
 	"  </component>\n"
 	"</components>\n";
 
@@ -1436,6 +1472,16 @@ xb_builder_native_lang_func (void)
 	g_assert_null (g_strstr_len (str, -1, "Wilcommen"));
 	g_assert_null (g_strstr_len (str, -1, "Hello"));
 	g_assert_nonnull (g_strstr_len (str, -1, "Salut"));
+	g_assert_null (g_strstr_len (str, -1, "Goodbye"));
+	g_assert_null (g_strstr_len (str, -1, "Auf Wiedersehen"));
+	g_assert_nonnull (g_strstr_len (str, -1, "Au revoir"));
+
+	/* test we traversed the tree correctly */
+	n = xb_silo_query_first (silo, "components/component/*", &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (n);
+	tmp = xb_node_export (n, XB_NODE_EXPORT_FLAG_INCLUDE_SIBLINGS, &error);
+	g_assert_cmpstr (tmp, ==, "<p xml:lang=\"fr\">Salut</p><p xml:lang=\"fr\">Au revoir</p>");
 }
 
 static void
@@ -2013,6 +2059,104 @@ xb_threading_func (void)
 	g_thread_pool_free (pool, FALSE, TRUE);
 }
 
+typedef struct {
+	guint		 cnt;
+	GString		*str;
+} XbMarkupHelper;
+
+static gboolean
+xb_markup_head_cb (XbNode *n, gpointer user_data)
+{
+	XbMarkupHelper *helper = (XbMarkupHelper *) user_data;
+	helper->cnt++;
+
+	if (xb_node_get_text (n) == NULL)
+		return FALSE;
+
+	/* start */
+	if (g_strcmp0 (xb_node_get_element (n), "em") == 0) {
+		g_string_append (helper->str, "*");
+	} else if (g_strcmp0 (xb_node_get_element (n), "strong") == 0) {
+		g_string_append (helper->str, "**");
+	} else if (g_strcmp0 (xb_node_get_element (n), "code") == 0) {
+		g_string_append (helper->str, "`");
+	}
+
+	/* text */
+	if (xb_node_get_text (n) != NULL)
+		g_string_append (helper->str, xb_node_get_text (n));
+
+	return FALSE;
+}
+
+static gboolean
+xb_markup_tail_cb (XbNode *n, gpointer user_data)
+{
+	XbMarkupHelper *helper = (XbMarkupHelper *) user_data;
+	helper->cnt++;
+
+	/* end */
+	if (g_strcmp0 (xb_node_get_element (n), "em") == 0) {
+		g_string_append (helper->str, "*");
+	} else if (g_strcmp0 (xb_node_get_element (n), "strong") == 0) {
+		g_string_append (helper->str, "**");
+	} else if (g_strcmp0 (xb_node_get_element (n), "code") == 0) {
+		g_string_append (helper->str, "`");
+	} else if (g_strcmp0 (xb_node_get_element (n), "p") == 0) {
+		g_string_append (helper->str, "\n\n");
+	}
+
+	/* tail */
+	if (xb_node_get_tail (n) != NULL)
+		g_string_append (helper->str, xb_node_get_tail (n));
+
+	return FALSE;
+}
+
+static void
+xb_markup_func (void)
+{
+	gboolean ret;
+	g_autofree gchar *new = NULL;
+	g_autofree gchar *tmp = NULL;
+	g_autoptr(GError) error = NULL;
+	g_autoptr(XbNode) n = NULL;
+	g_autoptr(XbSilo) silo = NULL;
+	XbMarkupHelper helper = {
+		.cnt = 0,
+		.str = g_string_new (NULL),
+	};
+	const gchar *xml = "<description>"
+			   "<p><code>Title</code>:</p>"
+			   "<p>There is a <em>slight</em> risk of <strong>death</strong> here<a>!</a></p>"
+			   "</description>";
+
+	/* import from XML */
+	silo = xb_silo_new_from_xml (xml, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (silo);
+
+	/* ensure we can round-trip */
+	tmp = xb_silo_to_string (silo, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (silo);
+	g_debug ("\n%s", tmp);
+	n = xb_silo_get_root (silo);
+	g_assert_nonnull (n);
+	new = xb_node_export (n, XB_NODE_EXPORT_FLAG_NONE, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (new);
+	g_assert_cmpstr (xml, ==, new);
+
+	/* ensure we can convert this to another format */
+	ret = xb_node_transmogrify (n, xb_markup_head_cb, xb_markup_tail_cb, &helper);
+	g_assert_true (ret);
+	g_assert_cmpstr (helper.str->str, ==,
+			 "`Title`:\n\nThere is a *slight* risk of **death** here!\n\n");
+	g_assert_cmpint (helper.cnt, ==, 14);
+	g_string_free (helper.str, TRUE);
+}
+
 static void
 xb_speed_func (void)
 {
@@ -2203,6 +2347,7 @@ main (int argc, char **argv)
 	g_test_add_func ("/libxmlb/builder-node{info}", xb_builder_node_info_func);
 	g_test_add_func ("/libxmlb/builder-node{literal-text}", xb_builder_node_literal_text_func);
 	g_test_add_func ("/libxmlb/builder-node{source-text}", xb_builder_node_source_text_func);
+	g_test_add_func ("/libxmlb/markup", xb_markup_func);
 	g_test_add_func ("/libxmlb/xpath", xb_xpath_func);
 	g_test_add_func ("/libxmlb/xpath-query", xb_xpath_query_func);
 	g_test_add_func ("/libxmlb/xpath{helpers}", xb_xpath_helpers_func);

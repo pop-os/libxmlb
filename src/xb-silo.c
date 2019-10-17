@@ -331,6 +331,10 @@ xb_silo_to_string (XbSilo *self, GError **error)
 				g_string_append_printf (str, "text:         %s\n",
 							xb_silo_from_strtab (self, n->text));
 			}
+			if (n->tail != XB_SILO_UNSET) {
+				g_string_append_printf (str, "tail:         %s\n",
+							xb_silo_from_strtab (self, n->tail));
+			}
 			for (guint8 i = 0; i < n->nr_attrs; i++) {
 				XbSiloAttr *a = xb_silo_get_attr (self, off, i);
 				g_string_append_printf (str, "attr_name:    %s [%03u]\n",
@@ -367,6 +371,15 @@ xb_silo_node_get_text (XbSilo *self, XbSiloNode *n)
 	if (n->text == XB_SILO_UNSET)
 		return NULL;
 	return xb_silo_from_strtab (self, n->text);
+}
+
+/* private */
+const gchar *
+xb_silo_node_get_tail (XbSilo *self, XbSiloNode *n)
+{
+	if (n->tail == XB_SILO_UNSET)
+		return NULL;
+	return xb_silo_from_strtab (self, n->tail);
 }
 
 /* private */
@@ -722,6 +735,9 @@ xb_silo_watch_file_cb (GFileMonitor *monitor,
 {
 	XbSilo *silo = XB_SILO (user_data);
 	g_autofree gchar *fn = g_file_get_path (file);
+	g_autofree gchar *basename = g_file_get_basename (file);
+	if (g_str_has_prefix (basename, ".goutputstream"))
+		return;
 	g_debug ("%s changed, invalidating", fn);
 	xb_silo_invalidate (silo);
 }
@@ -1056,6 +1072,31 @@ xb_silo_machine_func_text_cb (XbMachine *self,
 }
 
 static gboolean
+xb_silo_machine_func_tail_cb (XbMachine *self,
+			      XbStack *stack,
+			      gboolean *result,
+			      gpointer user_data,
+			      gpointer exec_data,
+			      GError **error)
+{
+	XbSilo *silo = XB_SILO (user_data);
+	XbSiloQueryData *query_data = (XbSiloQueryData *) exec_data;
+
+	/* optimize pass */
+	if (query_data == NULL) {
+		g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED_HANDLED,
+				     "cannot optimize: no silo to query");
+		return FALSE;
+	}
+	xb_machine_stack_push_steal (self, stack,
+				     xb_opcode_new (XB_OPCODE_KIND_INDEXED_TEXT,
+						    xb_silo_node_get_tail (silo, query_data->sn),
+						    query_data->sn->tail,
+						    NULL));
+	return TRUE;
+}
+
+static gboolean
 xb_silo_machine_func_first_cb (XbMachine *self,
 			       XbStack *stack,
 			       gboolean *result,
@@ -1071,7 +1112,7 @@ xb_silo_machine_func_first_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	*result = query_data->position == 1;
+	xb_stack_push_bool (stack, query_data->position == 1);
 	return TRUE;
 }
 
@@ -1091,7 +1132,7 @@ xb_silo_machine_func_last_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	*result = query_data->sn->next == 0;
+	xb_stack_push_bool (stack, query_data->sn->next == 0);
 	return TRUE;
 }
 
@@ -1128,8 +1169,8 @@ xb_silo_machine_func_search_cb (XbMachine *self,
 
 	/* TEXT:TEXT */
 	if (xb_opcode_cmp_str (op1) && xb_opcode_cmp_str (op2)) {
-		*result = xb_string_search (xb_opcode_get_str (op2),
-					    xb_opcode_get_str (op1));
+		xb_stack_push_bool (stack, xb_string_search (xb_opcode_get_str (op2),
+							     xb_opcode_get_str (op1)));
 		return TRUE;
 	}
 
@@ -1239,6 +1280,8 @@ xb_silo_init (XbSilo *self)
 			       xb_silo_machine_func_stem_cb, self, NULL);
 	xb_machine_add_method (priv->machine, "text", 0,
 			       xb_silo_machine_func_text_cb, self, NULL);
+	xb_machine_add_method (priv->machine, "tail", 0,
+			       xb_silo_machine_func_tail_cb, self, NULL);
 	xb_machine_add_method (priv->machine, "first", 0,
 			       xb_silo_machine_func_first_cb, self, NULL);
 	xb_machine_add_method (priv->machine, "last", 0,

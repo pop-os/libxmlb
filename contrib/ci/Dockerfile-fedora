@@ -1,16 +1,17 @@
-FROM fedora:28
+FROM fedora:30
 
 RUN dnf -y update
 RUN dnf -y install \
 	gcovr \
+	git-core \
 	glib2-devel \
 	gobject-introspection-devel \
 	gtk-doc \
+	libabigail \
 	libstemmer-devel \
 	libuuid-devel \
 	meson \
 	shared-mime-info \
 	redhat-rpm-config
 
-RUN mkdir /build
 WORKDIR /build

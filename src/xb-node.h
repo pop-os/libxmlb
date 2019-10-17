@@ -47,6 +47,13 @@ typedef enum {
 	XB_NODE_EXPORT_FLAG_LAST
 } XbNodeExportFlags;
 
+typedef gboolean (*XbNodeTransmogrifyFunc)	(XbNode		*self,
+						 gpointer	 user_data);
+gboolean	 xb_node_transmogrify		(XbNode		*self,
+						 XbNodeTransmogrifyFunc func_text,
+						 XbNodeTransmogrifyFunc func_tail,
+						 gpointer	 user_data);
+
 gchar		*xb_node_export			(XbNode		*self,
 						 XbNodeExportFlags flags,
 						 GError		**error);
@@ -64,6 +71,7 @@ GPtrArray	*xb_node_get_children		(XbNode		*self);
 const gchar	*xb_node_get_element		(XbNode		*self);
 const gchar	*xb_node_get_text		(XbNode		*self);
 guint64		 xb_node_get_text_as_uint	(XbNode		*self);
+const gchar	*xb_node_get_tail		(XbNode		*self);
 const gchar	*xb_node_get_attr		(XbNode		*self,
 						 const gchar	*name);
 guint64		 xb_node_get_attr_as_uint	(XbNode		*self,

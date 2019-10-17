@@ -161,7 +161,7 @@ if get_option('introspection')
   #  2. The map file is required to build the lib that the GIR is built from
   #
   # To avoid the circular dep, and to ensure we don't change exported API
-  # accidentaly actually check in a version of the version script to git.
+  # accidentally actually check in a version of the version script to git.
   mapfile_target = custom_target('libxmlb-mapfile',
     input: gir[0],
     output: 'libxmlb.map',
@@ -210,13 +210,14 @@ if get_option('tests')
     ],
     c_args : [
       '-DTESTDIR="@0@/../data"'.format(meson.current_source_dir()),
+      '-DINSTALLEDTESTDIR="' + installed_test_datadir + '"',
     ],
     dependencies : [
       gio,
       libxmlb_dep,
     ],
     install : true,
-    install_dir : libexecdir
+    install_dir : installed_test_bindir
   )
   test('xb-self-test', e)
 endif
