@@ -39,7 +39,7 @@ libxmlb.so.1 libxmlb1 #MINVER#
  xb_builder_node_get_text@LIBXMLB_0.1.0 0.1.0
  xb_builder_node_get_text_as_uint@LIBXMLB_0.1.3 0.1.3
  xb_builder_node_get_type@LIBXMLB_0.1.0 0.1.0
- xb_builder_node_has_flag@LIBXMLB_0.1.0 0.1.100
+ xb_builder_node_has_flag@LIBXMLB_0.1.0 0.1.0
  xb_builder_node_insert@LIBXMLB_0.1.0 0.1.0
  xb_builder_node_insert_text@LIBXMLB_0.1.0 0.1.0
  xb_builder_node_new@LIBXMLB_0.1.0 0.1.0
