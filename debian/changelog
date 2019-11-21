@@ -1,3 +1,9 @@
+libxmlb (0.1.13-2) unstable; urgency=medium
+
+  * Add debian/symbols (Closes: #945204)
+
+ -- Mario Limonciello <mario.limonciello@dell.com>  Thu, 21 Nov 2019 13:29:23 -0600
+
 libxmlb (0.1.13-1) unstable; urgency=medium
 
   * New upstream version (0.1.13)
