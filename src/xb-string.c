@@ -223,3 +223,28 @@ xb_string_isspace (const gchar *str, gssize strsz)
 	}
 	return TRUE;
 }
+
+void
+xb_guid_compute_for_data (XbGuid *out, const guint8 *buf, gsize bufsz)
+{
+	guint8 buf_tmp[20] = { 0x0 };
+	gsize buf_tmpsz = sizeof(buf_tmp);
+	g_autoptr(GChecksum) checksum = g_checksum_new (G_CHECKSUM_SHA1);
+	if (buf != NULL && bufsz != 0)
+		g_checksum_update (checksum, (const guchar *) buf, bufsz);
+	g_checksum_get_digest (checksum, buf_tmp, &buf_tmpsz);
+	memcpy (out, buf_tmp, sizeof(XbGuid));
+}
+
+gchar *
+xb_guid_to_string (XbGuid *guid)
+{
+	return g_strdup_printf ("%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
+				(guint) GUINT32_TO_BE (guid->tlo),
+				(guint) GUINT16_TO_BE (guid->tmi),
+				(guint) GUINT16_TO_BE (guid->thi),
+				(guint) GUINT16_TO_BE (guid->clo),
+				guid->nde[0], guid->nde[1],
+				guid->nde[2], guid->nde[3],
+				guid->nde[4], guid->nde[5]);
+}

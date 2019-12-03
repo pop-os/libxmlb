@@ -1,5 +1,5 @@
 project('libxmlb', 'c',
-  version : '0.1.13',
+  version : '0.1.14',
   license : 'LGPL-2.1+',
   meson_version : '>=0.47.0',
   default_options : ['warning_level=2', 'c_std=c99'],
@@ -27,7 +27,6 @@ configinc = include_directories('.')
 
 # get suported warning flags
 warning_flags = [
-  '-fstack-protector-strong',
   '-Waggregate-return',
   '-Wunused',
   '-Warray-bounds',
@@ -82,6 +81,10 @@ warning_flags = [
 cc = meson.get_compiler('c')
 add_project_arguments(cc.get_supported_arguments(warning_flags), language : 'c')
 
+if not meson.is_cross_build()
+  add_project_arguments('-fstack-protector-strong', language : 'c')
+endif
+
 # enable full RELRO where possible
 # FIXME: until https://github.com/mesonbuild/meson/issues/1140 is fixed
 global_link_args = []
@@ -99,22 +102,26 @@ add_project_link_arguments(
   language: 'c'
 )
 
-prefix = get_option('prefix')
-
-libexecdir = join_paths(prefix, get_option('libexecdir'))
-datadir = join_paths(prefix, get_option('datadir'))
-installed_test_bindir = join_paths(libexecdir, 'installed-tests', meson.project_name())
-installed_test_datadir = join_paths(datadir, 'installed-tests', meson.project_name())
+if host_machine.system() == 'windows'
+  libexecdir = get_option('libexecdir')
+  installed_test_bindir = get_option('libexecdir')
+  installed_test_datadir = get_option('datadir')
+else
+  prefix = get_option('prefix')
+  datadir = join_paths(prefix, get_option('datadir'))
+  libexecdir = join_paths(prefix, get_option('libexecdir'))
+  installed_test_bindir = join_paths(libexecdir, 'installed-tests', meson.project_name())
+  installed_test_datadir = join_paths(datadir, 'installed-tests', meson.project_name())
+endif
 
 gio = dependency('gio-2.0', version : '>= 2.45.8')
-uuid = dependency('uuid')
-if cc.has_function('uuid_generate_sha1', args : '-luuid')
-  conf.set('HAVE_UUID_GENERATE_SHA1', '1')
+giounix = dependency('gio-unix-2.0', version : '>= 2.45.8', required: false)
+if giounix.found()
+  conf.set('HAVE_GIO_UNIX', '1')
 endif
 
 libxmlb_deps = [
   gio,
-  uuid,
 ]
 
 # support stemming of search tokens
