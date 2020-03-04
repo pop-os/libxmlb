@@ -1,3 +1,9 @@
+libxmlb (0.1.15-1) unstable; urgency=medium
+
+  * New upstream version (0.1.15)
+
+ -- Mario Limonciello <mario.limonciello@dell.com>  Wed, 04 Mar 2020 11:51:10 -0600
+
 libxmlb (0.1.14-1) unstable; urgency=medium
 
   * New upstream version (0.1.14)
