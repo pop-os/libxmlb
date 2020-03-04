@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # pylint: disable=invalid-name,missing-docstring
 #
 # Copyright (C) 2017 Richard Hughes <richard@hughsie.com>
@@ -37,17 +38,14 @@ class LdVersionScript:
         if version not in self.releases:
             self.releases[version] = []
         release = self.releases[version]
-        release.append(identifier)
+        if identifier not in release:
+            release.append(identifier)
         return version
 
     def _add_cls(self, cls):
 
         # add all class functions
         for node in cls.findall(XMLNS + 'function'):
-            self._add_node(node)
-
-        # add the constructor
-        for node in cls.findall(XMLNS + 'constructor'):
             self._add_node(node)
 
         # choose the lowest version method for the _get_type symbol
@@ -60,7 +58,14 @@ class LdVersionScript:
         for node in cls.findall(XMLNS + 'method'):
             version_tmp = self._add_node(node)
             if version_tmp:
-                if not version_lowest or version_tmp < version_lowest:
+                if not version_lowest or parse_version(version_tmp) < parse_version(version_lowest):
+                    version_lowest = version_tmp
+
+        # add the constructor
+        for node in cls.findall(XMLNS + 'constructor'):
+            version_tmp = self._add_node(node)
+            if version_tmp:
+                if not version_lowest or parse_version(version_tmp) < parse_version(version_lowest):
                     version_lowest = version_tmp
 
         # finally add the get_type symbol
