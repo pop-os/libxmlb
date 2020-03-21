@@ -63,3 +63,20 @@ Description: Binary XML library
  This allows an application to mmap the binary XML file, do an XPath query and
  return some strings without actually parsing the entire document. This is all
  done using (almost) zero allocations and no actual copying of the binary data.
+
+Package: libxmlb-tests
+Architecture: any
+Depends: libxmlb1 (= ${binary:Version}),
+         shared-mime-info,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Installed tests for libxmlb1
+ The libxmlb library takes XML source, and
+ converts it to a structured binary representation with a deduplicated string
+ table -- where the strings have the NULs included.
+ .
+ This allows an application to mmap the binary XML file, do an XPath query and
+ return some strings without actually parsing the entire document. This is all
+ done using (almost) zero allocations and no actual copying of the binary data.
+ .
+ This package contains the installed tests for libxmlb1.
