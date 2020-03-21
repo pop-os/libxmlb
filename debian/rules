@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 %:
-	dh $@
+	dh $@ --with gir
 
 override_dh_install-arch:
 	mv debian/tmp/usr/libexec/xb-tool debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)
