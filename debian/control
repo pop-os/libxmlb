@@ -21,7 +21,7 @@ Vcs-Git: https://salsa.debian.org/efi-team/libxmlb.git
 Vcs-Browser: https://salsa.debian.org/efi-team/libxmlb
 
 Package: gir1.2-xmlb-1.0
-Architecture: linux-any
+Architecture: any
 Multi-Arch: same
 Depends: ${misc:Depends},
          ${gir:Depends}
