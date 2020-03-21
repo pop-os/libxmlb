@@ -12,7 +12,7 @@ Build-Depends: debhelper-compat (=12),
 	       libglib2.0-dev,
 	       libglib2.0-doc,
 	       libgirepository1.0-dev,
-	       meson,
+	       meson (>= 0.52.0),
 	       shared-mime-info,
 	       uuid-dev,
 Standards-Version: 4.5.0
