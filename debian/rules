@@ -2,3 +2,7 @@
 
 %:
 	dh $@
+
+override_dh_install-arch:
+	mv debian/tmp/usr/libexec/xb-tool debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)
+	dh_install -a

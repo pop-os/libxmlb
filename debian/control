@@ -5,7 +5,7 @@ Maintainer: Debian EFI team <debian-efi@lists.debian.org>
 Uploaders: Steve McIntyre <93sam@debian.org>,
            Matthias Klumpp <mak@debian.org>,
            Mario Limonciello <mario.limonciello@dell.com>
-Build-Depends: debhelper (>=9),
+Build-Depends: debhelper-compat (=12),
 	       gir1.2-glib-2.0,
 	       gobject-introspection,
 	       gtk-doc-tools,
