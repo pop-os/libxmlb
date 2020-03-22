@@ -5,28 +5,28 @@ Maintainer: Debian EFI team <debian-efi@lists.debian.org>
 Uploaders: Steve McIntyre <93sam@debian.org>,
            Matthias Klumpp <mak@debian.org>,
            Mario Limonciello <mario.limonciello@dell.com>
-Build-Depends: debhelper (>=9),
+Build-Depends: debhelper-compat (=12),
 	       gir1.2-glib-2.0,
 	       gobject-introspection,
 	       gtk-doc-tools,
 	       libglib2.0-dev,
+	       libglib2.0-doc,
 	       libgirepository1.0-dev,
-	       meson,
+	       meson (>= 0.52.0),
 	       shared-mime-info,
-	       uuid-dev,
-Standards-Version: 4.3.0
+Standards-Version: 4.5.0
 Homepage: https://github.com/hughsie/libxmlb
 Vcs-Git: https://salsa.debian.org/efi-team/libxmlb.git
 Vcs-Browser: https://salsa.debian.org/efi-team/libxmlb
 
 Package: gir1.2-xmlb-1.0
-Architecture: linux-any
+Architecture: any
 Multi-Arch: same
 Depends: ${misc:Depends},
          ${gir:Depends}
 Section: introspection
 Description: GObject introspection data for libxmlb
- This package provides the introspection data for libfwupd.
+ This package provides the introspection data for libxmlb.
  .
  It can be used by packages using the GIRepository format to generate
  dynamic bindings.
@@ -36,7 +36,7 @@ Section: libdevel
 Architecture: any
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}, gir1.2-xmlb-1.0 (= ${binary:Version})
 Description: development files for libxmlb
  This package provides development libraryes for libxmlb.
  .
@@ -62,3 +62,20 @@ Description: Binary XML library
  This allows an application to mmap the binary XML file, do an XPath query and
  return some strings without actually parsing the entire document. This is all
  done using (almost) zero allocations and no actual copying of the binary data.
+
+Package: libxmlb-tests
+Architecture: any
+Depends: libxmlb1 (= ${binary:Version}),
+         shared-mime-info,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Installed tests for libxmlb1
+ The libxmlb library takes XML source, and
+ converts it to a structured binary representation with a deduplicated string
+ table -- where the strings have the NULs included.
+ .
+ This allows an application to mmap the binary XML file, do an XPath query and
+ return some strings without actually parsing the entire document. This is all
+ done using (almost) zero allocations and no actual copying of the binary data.
+ .
+ This package contains the installed tests for libxmlb1.

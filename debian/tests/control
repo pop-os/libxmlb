@@ -1,0 +1,2 @@
+Tests: installed-tests
+Depends: gnome-desktop-testing, libxmlb-tests

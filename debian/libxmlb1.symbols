@@ -1,4 +1,5 @@
 libxmlb.so.1 libxmlb1 #MINVER#
+* Build-Depends-Package: libxmlb-dev
  LIBXMLB_0.1.0@LIBXMLB_0.1.0 0.1.0
  LIBXMLB_0.1.11@LIBXMLB_0.1.11 0.1.11
  LIBXMLB_0.1.12@LIBXMLB_0.1.12 0.1.12
