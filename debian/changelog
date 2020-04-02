@@ -1,5 +1,6 @@
-libxmlb (0.1.15-2) UNRELEASED; urgency=medium
+libxmlb (0.1.15-2) unstable; urgency=medium
 
+  * Team upload.
   * Bump debhelper compatibility to 12
   * debian/control: Bump Standards-Version to 4.5.0 (no further changes)
   * debian/control: Add libglib2.0-doc to the BD to fix the links between the
@@ -16,7 +17,7 @@ libxmlb (0.1.15-2) UNRELEASED; urgency=medium
   * debian/control: Fix the short description of gir1.2-xmlb-1.0
     (Closes: #921833)
 
- -- Laurent Bigonville <bigon@debian.org>  Sat, 21 Mar 2020 15:08:07 +0100
+ -- Laurent Bigonville <bigon@debian.org>  Thu, 02 Apr 2020 19:39:22 +0200
 
 libxmlb (0.1.15-1) unstable; urgency=medium
 
