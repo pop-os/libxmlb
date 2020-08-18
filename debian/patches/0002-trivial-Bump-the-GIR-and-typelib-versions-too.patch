@@ -1,0 +1,45 @@
+From 8a848afbf777aef55eddd1707944f8a1e05f0bd0 Mon Sep 17 00:00:00 2001
+From: Richard Hughes <richard@hughsie.com>
+Date: Tue, 18 Aug 2020 20:16:49 +0100
+Subject: [PATCH 2/2] trivial: Bump the GIR and typelib versions too
+
+---
+ contrib/libxmlb.spec.in | 4 ++--
+ src/meson.build         | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/contrib/libxmlb.spec.in b/contrib/libxmlb.spec.in
+index 8f7c85e..f33c6e7 100644
+--- a/contrib/libxmlb.spec.in
++++ b/contrib/libxmlb.spec.in
+@@ -72,12 +72,12 @@ Executable and data files for installed tests.
+ %license LICENSE
+ %{_libexecdir}/xb-tool
+ %dir %{_libdir}/girepository-1.0
+-%{_libdir}/girepository-1.0/*.typelib
++%{_libdir}/girepository-1.0/Xmlb-2.0.typelib
+ %{_libdir}/libxmlb.so.2*
+ 
+ %files devel
+ %dir %{_datadir}/gir-1.0
+-%{_datadir}/gir-1.0/*.gir
++%{_datadir}/gir-1.0/Xmlb-2.0.gir
+ %dir %{_datadir}/gtk-doc
+ %dir %{_datadir}/gtk-doc/html
+ %{_datadir}/gtk-doc/html/libxmlb
+diff --git a/src/meson.build b/src/meson.build
+index 3bd982f..d32c761 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -137,7 +137,7 @@ if get_option('introspection')
+       'xb-string.c',
+       'xb-string.h',
+     ],
+-    nsversion : '1.0',
++    nsversion : '2.0',
+     namespace : 'Xmlb',
+     symbol_prefix : 'xb',
+     identifier_prefix : 'Xb',
+-- 
+2.25.1
+
