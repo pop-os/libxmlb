@@ -13,6 +13,7 @@
 #include "xb-machine.h"
 #include "xb-node-query.h"
 #include "xb-opcode.h"
+#include "xb-opcode-private.h"
 #include "xb-silo-export.h"
 #include "xb-silo-private.h"
 #include "xb-silo-query-private.h"
@@ -76,31 +77,38 @@ xb_test_import_xml (XbBuilder *self, const gchar *xml, GError **error)
 static void
 xb_stack_func (void)
 {
-	XbOpcode *op;
-	g_autoptr(XbOpcode) op1 = xb_opcode_func_new (0);
-	g_autoptr(XbOpcode) op2 = xb_opcode_integer_new (1);
-	g_autoptr(XbOpcode) op3 = xb_opcode_text_new ("dave");
+	XbOpcode *op1, *op2, *op3, *op4;
+	g_auto(XbOpcode) op1_popped = XB_OPCODE_INIT ();
+	g_auto(XbOpcode) op2_popped = XB_OPCODE_INIT ();
+	g_auto(XbOpcode) op3_popped = XB_OPCODE_INIT ();
 	g_autoptr(XbStack) stack = xb_stack_new (3);
 
 	/* push three opcodes */
-	g_assert_true (xb_stack_push (stack, op3));
-	g_assert_true (xb_stack_push (stack, op2));
-	g_assert_true (xb_stack_push (stack, op1));
-	g_assert_false (xb_stack_push (stack, op3));
+	g_assert_true (xb_stack_push (stack, &op3, NULL));
+	xb_opcode_text_init (op3, "dave");
+	g_assert_true (xb_stack_push (stack, &op2, NULL));
+	xb_opcode_integer_init (op2, 1);
+	g_assert_true (xb_stack_push (stack, &op1, NULL));
+	xb_opcode_func_init (op1, 0);
+	g_assert_false (xb_stack_push (stack, &op4, NULL));
+	g_assert_null (op4);
 
 	/* pop the same opcodes */
-	op = xb_stack_pop (stack);
-	g_assert (op == op1);
-	xb_opcode_unref (op);
-	op = xb_stack_pop (stack);
-	g_assert (op == op2);
-	xb_opcode_unref (op);
-	op = xb_stack_pop (stack);
-	g_assert (op == op3);
-	xb_opcode_unref (op);
+	g_assert_true (xb_stack_pop (stack, &op1_popped, NULL));
+	g_assert_cmpint (xb_opcode_get_kind (&op1_popped), ==, XB_OPCODE_KIND_FUNCTION);
+
+	g_assert_true (xb_stack_pop (stack, &op2_popped, NULL));
+	g_assert_cmpint (xb_opcode_get_kind (&op2_popped), ==, XB_OPCODE_KIND_INTEGER);
+	g_assert_cmpuint (xb_opcode_get_val (&op2_popped), ==, 1);
+
+	g_assert_true (xb_stack_pop (stack, &op3_popped, NULL));
+	g_assert_cmpint (xb_opcode_get_kind (&op3_popped), ==, XB_OPCODE_KIND_TEXT);
+	g_assert_cmpstr (xb_opcode_get_str (&op3_popped), ==, "dave");
 
 	/* re-add one opcode */
-	g_assert_true (xb_stack_push (stack, op3));
+	g_assert_true (xb_stack_push (stack, &op4, NULL));
+	xb_opcode_text_init (op4, "dave again");
+	g_assert_nonnull (op4);
 
 	/* finish, cleaning up the stack properly... */
 }
@@ -108,22 +116,23 @@ xb_stack_func (void)
 static void
 xb_stack_peek_func (void)
 {
-	g_autoptr(XbOpcode) op1 = xb_opcode_func_new (0);
-	g_autoptr(XbOpcode) op2 = xb_opcode_integer_new (1);
-	g_autoptr(XbOpcode) op3 = xb_opcode_text_new ("dave");
+	XbOpcode *op1, *op2, *op3;
 	g_autoptr(XbStack) stack = xb_stack_new (3);
 
 	/* push three opcodes */
-	g_assert_true (xb_stack_push (stack, op1));
-	g_assert_true (xb_stack_push (stack, op2));
-	g_assert_true (xb_stack_push (stack, op3));
+	g_assert_true (xb_stack_push (stack, &op1, NULL));
+	xb_opcode_func_init (op1, 0);
+	g_assert_true (xb_stack_push (stack, &op2, NULL));
+	xb_opcode_integer_init (op2, 1);
+	g_assert_true (xb_stack_push (stack, &op3, NULL));
+	xb_opcode_text_init (op3, "dave");
 
-	/* pop the same opcodes */
-	g_assert (xb_stack_peek_head (stack) == op1);
-	g_assert (xb_stack_peek_tail (stack) == op3);
-	g_assert (xb_stack_peek (stack, 0) == op1);
-	g_assert (xb_stack_peek (stack, 1) == op2);
-	g_assert (xb_stack_peek (stack, 2) == op3);
+	/* peek the same opcodes */
+	g_assert_true (xb_stack_peek_head (stack) == op1);
+	g_assert_true (xb_stack_peek_tail (stack) == op3);
+	g_assert_true (xb_stack_peek (stack, 0) == op1);
+	g_assert_true (xb_stack_peek (stack, 1) == op2);
+	g_assert_true (xb_stack_peek (stack, 2) == op3);
 }
 
 static void
@@ -151,14 +160,18 @@ xb_common_func (void)
 static void
 xb_opcodes_kind_func (void)
 {
-	g_autoptr(XbOpcode) op1 = xb_opcode_func_new (0);
-	g_autoptr(XbOpcode) op2 = xb_opcode_integer_new (1);
-	g_autoptr(XbOpcode) op3 = xb_opcode_text_new ("dave");
+	g_auto(XbOpcode) op1 = XB_OPCODE_INIT ();
+	g_auto(XbOpcode) op2 = XB_OPCODE_INIT ();
+	g_auto(XbOpcode) op3 = XB_OPCODE_INIT ();
+
+	xb_opcode_func_init (&op1, 0);
+	xb_opcode_integer_init (&op2, 1);
+	xb_opcode_text_init (&op3, "dave");
 
 	/* check kind */
-	g_assert_cmpint (xb_opcode_get_kind (op1), ==, XB_OPCODE_KIND_FUNCTION);
-	g_assert_cmpint (xb_opcode_get_kind (op2), ==, XB_OPCODE_KIND_INTEGER);
-	g_assert_cmpint (xb_opcode_get_kind (op3), ==, XB_OPCODE_KIND_TEXT);
+	g_assert_cmpint (xb_opcode_get_kind (&op1), ==, XB_OPCODE_KIND_FUNCTION);
+	g_assert_cmpint (xb_opcode_get_kind (&op2), ==, XB_OPCODE_KIND_INTEGER);
+	g_assert_cmpint (xb_opcode_get_kind (&op3), ==, XB_OPCODE_KIND_TEXT);
 
 	/* to and from string */
 	g_assert_cmpint (xb_opcode_kind_from_string ("TEXT"), ==, XB_OPCODE_KIND_TEXT);
@@ -171,14 +184,14 @@ xb_opcodes_kind_func (void)
 	g_assert_cmpstr (xb_opcode_kind_to_string (XB_OPCODE_KIND_UNKNOWN), ==, NULL);
 
 	/* integer compare */
-	g_assert_false (xb_opcode_cmp_val (op1));
-	g_assert_true (xb_opcode_cmp_val (op2));
-	g_assert_false (xb_opcode_cmp_val (op3));
+	g_assert_false (xb_opcode_cmp_val (&op1));
+	g_assert_true (xb_opcode_cmp_val (&op2));
+	g_assert_false (xb_opcode_cmp_val (&op3));
 
 	/* string compare */
-	g_assert_false (xb_opcode_cmp_str (op1));
-	g_assert_false (xb_opcode_cmp_str (op2));
-	g_assert_true (xb_opcode_cmp_str (op3));
+	g_assert_false (xb_opcode_cmp_str (&op1));
+	g_assert_false (xb_opcode_cmp_str (&op2));
+	g_assert_true (xb_opcode_cmp_str (&op3));
 }
 
 static void
@@ -1027,6 +1040,7 @@ xb_xpath_parent_subnode_func (void)
 
 	/* import from XML */
 	silo = xb_silo_new_from_xml (xml, &error);
+	xb_silo_set_enable_node_cache (silo, TRUE);
 	g_assert_no_error (error);
 	g_assert_nonnull (silo);
 
@@ -1753,6 +1767,43 @@ xb_xpath_query_reverse_func (void)
 }
 
 static void
+xb_xpath_query_force_node_cache_func (void)
+{
+	gboolean ret;
+	g_autoptr(GError) error = NULL;
+	g_autoptr(XbBuilder) builder = xb_builder_new ();
+	g_autoptr(XbNode) n1 = NULL;
+	g_autoptr(XbNode) n2 = NULL;
+	g_autoptr(XbQuery) query = NULL;
+	g_autoptr(XbSilo) silo = NULL;
+	const gchar *xml =
+	"<names>\n"
+	"  <name>foo</name>\n"
+	"</names>\n";
+
+	/* import from XML */
+	ret = xb_test_import_xml (builder, xml, &error);
+	g_assert_no_error (error);
+	g_assert_true (ret);
+	silo = xb_builder_compile (builder, XB_BUILDER_COMPILE_FLAG_NONE, NULL, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (silo);
+
+	/* use a cache for this specific result */
+	query = xb_query_new_full (silo, "names/name",
+				   XB_QUERY_FLAG_FORCE_NODE_CACHE, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (query);
+	n1 = xb_silo_query_first_full (silo, query, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (n1);
+	n2 = xb_silo_query_first_full (silo, query, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (n2);
+	g_assert (n1 == n2);
+}
+
+static void
 xb_xpath_glob_func (void)
 {
 	g_autofree gchar *xml2 = NULL;
@@ -2406,6 +2457,7 @@ main (int argc, char **argv)
 	g_test_add_func ("/libxmlb/xpath", xb_xpath_func);
 	g_test_add_func ("/libxmlb/xpath-query", xb_xpath_query_func);
 	g_test_add_func ("/libxmlb/xpath-query{reverse}", xb_xpath_query_reverse_func);
+	g_test_add_func ("/libxmlb/xpath-query{force-node-cache}", xb_xpath_query_force_node_cache_func);
 	g_test_add_func ("/libxmlb/xpath{helpers}", xb_xpath_helpers_func);
 	g_test_add_func ("/libxmlb/xpath{prepared}", xb_xpath_prepared_func);
 	g_test_add_func ("/libxmlb/xpath{incomplete}", xb_xpath_incomplete_func);

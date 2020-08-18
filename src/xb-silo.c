@@ -17,6 +17,7 @@
 #endif
 
 #include "xb-builder.h"
+#include "xb-machine-private.h"
 #include "xb-node-private.h"
 #include "xb-opcode-private.h"
 #include "xb-silo-private.h"
@@ -24,7 +25,6 @@
 #include "xb-string-private.h"
 
 typedef struct {
-	GObject			 parent_instance;
 	GMappedFile		*mmap;
 	gchar			*guid;
 	gboolean		 valid;
@@ -34,9 +34,10 @@ typedef struct {
 	guint32			 strtab;
 	GHashTable		*strtab_tags;
 	GHashTable		*strindex;
-	GHashTable		*nodes;
+	gboolean		 enable_node_cache;
+	GHashTable		*nodes;	/* (mutex nodes_mutex) */
 	GMutex			 nodes_mutex;
-	GHashTable		*file_monitors;	/* of fn:XbSiloFileMonitorItem */
+	GHashTable		*file_monitors;	/* of GFile:XbSiloFileMonitorItem */
 	XbMachine		*machine;
 	XbSiloProfileFlags	 profile_flags;
 	GString			*profile_str;
@@ -58,8 +59,23 @@ enum {
 	PROP_0,
 	PROP_GUID,
 	PROP_VALID,
+	PROP_ENABLE_NODE_CACHE,
 	PROP_LAST
 };
+
+/* private */
+GTimer *
+xb_silo_start_profile (XbSilo *self)
+{
+	XbSiloPrivate *priv = GET_PRIVATE (self);
+
+	/* nothing to do; g_timer_new() does a syscall to clock_gettime() which
+	 * is best avoided if not needed */
+	if (!priv->profile_flags)
+		return NULL;
+
+	return g_timer_new ();
+}
 
 /* private */
 void
@@ -67,11 +83,13 @@ xb_silo_add_profile (XbSilo *self, GTimer *timer, const gchar *fmt, ...)
 {
 	XbSiloPrivate *priv = GET_PRIVATE (self);
 	va_list args;
-	g_autoptr(GString) str = g_string_new (NULL);
+	g_autoptr(GString) str = NULL;
 
 	/* nothing to do */
 	if (!priv->profile_flags)
 		return;
+
+	str = g_string_new ("");
 
 	/* add duration */
 	if (timer != NULL) {
@@ -277,7 +295,7 @@ XbNode *
 xb_silo_get_root (XbSilo *self)
 {
 	g_return_val_if_fail (XB_IS_SILO (self), NULL);
-	return xb_silo_node_create (self, xb_silo_get_sroot (self));
+	return xb_silo_node_create (self, xb_silo_get_sroot (self), FALSE);
 }
 
 /* private */
@@ -594,16 +612,20 @@ xb_silo_load_from_bytes (XbSilo *self, GBytes *blob, XbSiloLoadFlags flags, GErr
 	XbSiloPrivate *priv = GET_PRIVATE (self);
 	gsize sz = 0;
 	guint32 off = 0;
-	g_autoptr(GMutexLocker) locker = g_mutex_locker_new (&priv->nodes_mutex);
-	g_autoptr(GTimer) timer = g_timer_new ();
+	g_autoptr(GMutexLocker) locker = NULL;
+	g_autoptr(GTimer) timer = xb_silo_start_profile (self);
 
 	g_return_val_if_fail (XB_IS_SILO (self), FALSE);
 	g_return_val_if_fail (blob != NULL, FALSE);
 	g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-	g_return_val_if_fail (locker != NULL, FALSE);
 
 	/* no longer valid */
-	g_hash_table_remove_all (priv->nodes);
+	if (priv->enable_node_cache) {
+		locker = g_mutex_locker_new (&priv->nodes_mutex);
+		if (priv->nodes != NULL)
+			g_hash_table_remove_all (priv->nodes);
+	}
+
 	g_hash_table_remove_all (priv->strtab_tags);
 	g_clear_pointer (&priv->guid, g_free);
 
@@ -636,10 +658,10 @@ xb_silo_load_from_bytes (XbSilo *self, GBytes *blob, XbSiloLoadFlags flags, GErr
 			return FALSE;
 		}
 		if (hdr->version != XB_SILO_VERSION) {
-			g_set_error_literal (error,
-					     G_IO_ERROR,
-					     G_IO_ERROR_INVALID_DATA,
-					     "version incorrect");
+			g_set_error (error,
+				     G_IO_ERROR,
+				     G_IO_ERROR_INVALID_DATA,
+				     "version incorrect, got %u, expected %d", hdr->version, XB_SILO_VERSION);
 			return FALSE;
 		}
 	}
@@ -718,6 +740,56 @@ xb_silo_set_profile_flags (XbSilo *self, XbSiloProfileFlags profile_flags)
 	priv->profile_flags = profile_flags;
 }
 
+/**
+ * xb_silo_get_enable_node_cache:
+ * @self: an #XbSilo
+ *
+ * Get #XbSilo:enable-node-cache.
+ *
+ * Since: 0.2.0
+ */
+gboolean
+xb_silo_get_enable_node_cache (XbSilo *self)
+{
+	XbSiloPrivate *priv = GET_PRIVATE (self);
+	g_return_val_if_fail (XB_IS_SILO (self), FALSE);
+	return priv->enable_node_cache;
+}
+
+/**
+ * xb_silo_set_enable_node_cache:
+ * @self: an #XbSilo
+ * @enable_node_cache: %TRUE to enable the node cache, %FALSE otherwise
+ *
+ * Set #XbSilo:enable-node-cache.
+ *
+ * This is not thread-safe, and can only be called before the #XbSilo is passed
+ * between threads.
+ *
+ * Since: 0.2.0
+ */
+void
+xb_silo_set_enable_node_cache (XbSilo *self, gboolean enable_node_cache)
+{
+	XbSiloPrivate *priv = GET_PRIVATE (self);
+
+	g_return_if_fail (XB_IS_SILO (self));
+
+	if (priv->enable_node_cache == enable_node_cache)
+		return;
+
+	priv->enable_node_cache = enable_node_cache;
+
+	/* if disabling the cache, destroy any existing data structures;
+	 * if enabling it, create them lazily when the first entry is cached
+	 * (see xb_silo_node_create()) */
+	if (!enable_node_cache) {
+		g_clear_pointer (&priv->nodes, g_hash_table_unref);
+	}
+
+	g_object_notify (G_OBJECT (self), "enable-node-cache");
+}
+
 /* private */
 XbSiloProfileFlags
 xb_silo_get_profile_flags (XbSilo *self)
@@ -764,7 +836,6 @@ xb_silo_watch_file (XbSilo *self,
 {
 	XbSiloFileMonitorItem *item;
 	XbSiloPrivate *priv = GET_PRIVATE (self);
-	g_autofree gchar *fn = g_file_get_path (file);
 	g_autoptr(GFileMonitor) file_monitor = NULL;
 
 	g_return_val_if_fail (XB_IS_SILO (self), FALSE);
@@ -772,13 +843,13 @@ xb_silo_watch_file (XbSilo *self,
 	g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
 	/* already exists */
-	item = g_hash_table_lookup (priv->file_monitors, fn);
+	item = g_hash_table_lookup (priv->file_monitors, file);
 	if (item != NULL)
 		return TRUE;
 
 	/* try to create */
-	file_monitor = g_file_monitor_file (file, G_FILE_MONITOR_NONE,
-					    cancellable, error);
+	file_monitor = g_file_monitor (file, G_FILE_MONITOR_NONE,
+				       cancellable, error);
 	if (file_monitor == NULL)
 		return FALSE;
 	g_file_monitor_set_rate_limit (file_monitor, 20);
@@ -788,7 +859,7 @@ xb_silo_watch_file (XbSilo *self,
 	item->file_monitor = g_object_ref (file_monitor);
 	item->file_monitor_id = g_signal_connect (file_monitor, "changed",
 						  G_CALLBACK (xb_silo_watch_file_cb), self);
-	g_hash_table_insert (priv->file_monitors, g_steal_pointer (&fn), item);
+	g_hash_table_insert (priv->file_monitors, g_object_ref (file), item);
 	return TRUE;
 }
 
@@ -816,16 +887,15 @@ xb_silo_load_from_file (XbSilo *self,
 	XbSiloPrivate *priv = GET_PRIVATE (self);
 	g_autofree gchar *fn = NULL;
 	g_autoptr(GBytes) blob = NULL;
-	g_autoptr(GTimer) timer = g_timer_new ();
+	g_autoptr(GTimer) timer = xb_silo_start_profile (self);
 
 	g_return_val_if_fail (XB_IS_SILO (self), FALSE);
 	g_return_val_if_fail (G_IS_FILE (file), FALSE);
 	g_return_val_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable), FALSE);
 	g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
-	/* no longer valid */
+	/* no longer valid (@nodes is cleared by xb_silo_load_from_bytes()) */
 	g_hash_table_remove_all (priv->file_monitors);
-	g_hash_table_remove_all (priv->nodes);
 	g_hash_table_remove_all (priv->strtab_tags);
 	g_clear_pointer (&priv->guid, g_free);
 	if (priv->mmap != NULL)
@@ -871,7 +941,7 @@ xb_silo_save_to_file (XbSilo *self,
 {
 	XbSiloPrivate *priv = GET_PRIVATE (self);
 	g_autoptr(GFile) file_parent = NULL;
-	g_autoptr(GTimer) timer = g_timer_new ();
+	g_autoptr(GTimer) timer = xb_silo_start_profile (self);
 
 	g_return_val_if_fail (XB_IS_SILO (self), FALSE);
 	g_return_val_if_fail (G_IS_FILE (file), FALSE);
@@ -935,13 +1005,23 @@ xb_silo_new_from_xml (const gchar *xml, GError **error)
 
 /* private */
 XbNode *
-xb_silo_node_create (XbSilo *self, XbSiloNode *sn)
+xb_silo_node_create (XbSilo *self, XbSiloNode *sn, gboolean force_node_cache)
 {
 	XbNode *n;
 	XbSiloPrivate *priv = GET_PRIVATE (self);
-	g_autoptr(GMutexLocker) locker = g_mutex_locker_new (&priv->nodes_mutex);
+	g_autoptr(GMutexLocker) locker = NULL;
 
-	g_return_val_if_fail (locker != NULL, NULL);
+	/* the cache should only be enabled/disabled before threads are
+	 * spawned, so `priv->enable_node_cache` can be accessed unlocked */
+	if (!priv->enable_node_cache && !force_node_cache)
+		return xb_node_new (self, sn);
+
+	locker = g_mutex_locker_new (&priv->nodes_mutex);
+
+	/* ensure the cache exists */
+	if (priv->nodes == NULL)
+		priv->nodes = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+						     NULL, (GDestroyNotify) g_object_unref);
 
 	/* does already exist */
 	n = g_hash_table_lookup (priv->nodes, sn);
@@ -954,6 +1034,19 @@ xb_silo_node_create (XbSilo *self, XbSiloNode *sn)
 	return n;
 }
 
+/* Push two opcodes onto the stack with appropriate rollback on failure. */
+static gboolean
+_xb_stack_push_two (XbStack *opcodes, XbOpcode **op1, XbOpcode **op2, GError **error)
+{
+	if (!xb_stack_push (opcodes, op1, error))
+		return FALSE;
+	if (!xb_stack_push (opcodes, op2, error)) {
+		xb_stack_pop (opcodes, NULL, NULL);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /* convert [2] to position()=2 */
 static gboolean
 xb_silo_machine_fixup_position_cb (XbMachine *self,
@@ -961,8 +1054,15 @@ xb_silo_machine_fixup_position_cb (XbMachine *self,
 				   gpointer user_data,
 				   GError **error)
 {
-	xb_stack_push_steal (opcodes, xb_machine_opcode_func_new (self, "position"));
-	xb_stack_push_steal (opcodes, xb_machine_opcode_func_new (self, "eq"));
+	XbOpcode *op1;
+	XbOpcode *op2;
+
+	if (!_xb_stack_push_two (opcodes, &op1, &op2, error))
+		return FALSE;
+
+	xb_machine_opcode_func_init (self, op1, "position");
+	xb_machine_opcode_func_init (self, op2, "eq");
+
 	return TRUE;
 }
 
@@ -973,8 +1073,15 @@ xb_silo_machine_fixup_attr_exists_cb (XbMachine *self,
 				      gpointer user_data,
 				      GError **error)
 {
-	xb_stack_push_steal (opcodes, xb_opcode_text_new_static (NULL));
-	xb_stack_push_steal (opcodes, xb_machine_opcode_func_new (self, "ne"));
+	XbOpcode *op1;
+	XbOpcode *op2;
+
+	if (!_xb_stack_push_two (opcodes, &op1, &op2, error))
+		return FALSE;
+
+	xb_opcode_text_init_static (op1, NULL);
+	xb_machine_opcode_func_init (self, op2, "ne");
+
 	return TRUE;
 }
 
@@ -990,7 +1097,7 @@ xb_silo_machine_func_attr_cb (XbMachine *self,
 	XbSiloAttr *a;
 	XbSilo *silo = XB_SILO (user_data);
 	XbSiloQueryData *query_data = (XbSiloQueryData *) exec_data;
-	g_autoptr(XbOpcode) op = xb_machine_stack_pop (self, stack);
+	g_auto(XbOpcode) op = XB_OPCODE_INIT ();
 
 	/* optimize pass */
 	if (query_data == NULL) {
@@ -999,23 +1106,26 @@ xb_silo_machine_func_attr_cb (XbMachine *self,
 		return FALSE;
 	}
 
+	if (!xb_machine_stack_pop (self, stack, &op, error))
+		return FALSE;
+
 	/* indexed string */
-	if (xb_opcode_get_kind (op) == XB_OPCODE_KIND_INDEXED_TEXT) {
-		guint32 val = xb_opcode_get_val (op);
+	if (xb_opcode_get_kind (&op) == XB_OPCODE_KIND_INDEXED_TEXT) {
+		guint32 val = xb_opcode_get_val (&op);
 		a = xb_silo_node_get_attr_by_val (silo, query_data->sn, val);
 	} else {
-		const gchar *str = xb_opcode_get_str (op);
+		const gchar *str = xb_opcode_get_str (&op);
 		a = xb_silo_node_get_attr_by_str (silo, query_data->sn, str);
 	}
 	if (a == NULL) {
-		xb_machine_stack_push_text_static (self, stack, NULL);
-		return TRUE;
+		return xb_machine_stack_push_text_static (self, stack, NULL, error);
 	}
-	op2 = xb_opcode_new (XB_OPCODE_KIND_INDEXED_TEXT,
-			     xb_silo_from_strtab (silo, a->attr_value),
-			     a->attr_value,
-			     NULL);
-	xb_machine_stack_push_steal (self, stack, op2);
+	if (!xb_machine_stack_push (self, stack, &op2, error))
+		return FALSE;
+	xb_opcode_init (op2, XB_OPCODE_KIND_INDEXED_TEXT,
+			xb_silo_from_strtab (silo, a->attr_value),
+			a->attr_value,
+			NULL);
 	return TRUE;
 }
 
@@ -1028,22 +1138,26 @@ xb_silo_machine_func_stem_cb (XbMachine *self,
 			      GError **error)
 {
 	XbSilo *silo = XB_SILO (user_data);
-	g_autoptr(XbOpcode) op = xb_machine_stack_pop (self, stack);
+	XbOpcode *head;
+	const gchar *str;
+	g_auto(XbOpcode) op = XB_OPCODE_INIT ();
 
-	/* TEXT */
-	if (xb_opcode_cmp_str (op)) {
-		const gchar *str = xb_opcode_get_str (op);
-		xb_machine_stack_push_text_steal (self, stack, xb_silo_stem (silo, str));
-		return TRUE;
+	head = xb_stack_peek_head (stack);
+	if (head == NULL || !xb_opcode_cmp_str (head)) {
+		g_set_error (error,
+			     G_IO_ERROR,
+			     G_IO_ERROR_NOT_SUPPORTED,
+			     "%s type not supported",
+			     (head != NULL) ? xb_opcode_kind_to_string (xb_opcode_get_kind (head)) : "(null)");
+		return FALSE;
 	}
 
-	/* fail */
-	g_set_error (error,
-		     G_IO_ERROR,
-		     G_IO_ERROR_NOT_SUPPORTED,
-		     "%s type not supported",
-		     xb_opcode_kind_to_string (xb_opcode_get_kind (op)));
-	return FALSE;
+	if (!xb_machine_stack_pop (self, stack, &op, error))
+		return FALSE;
+
+	/* TEXT */
+	str = xb_opcode_get_str (&op);
+	return xb_machine_stack_push_text_steal (self, stack, xb_silo_stem (silo, str), error);
 }
 
 static gboolean
@@ -1056,6 +1170,7 @@ xb_silo_machine_func_text_cb (XbMachine *self,
 {
 	XbSilo *silo = XB_SILO (user_data);
 	XbSiloQueryData *query_data = (XbSiloQueryData *) exec_data;
+	XbOpcode *op;
 
 	/* optimize pass */
 	if (query_data == NULL) {
@@ -1063,11 +1178,13 @@ xb_silo_machine_func_text_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	xb_machine_stack_push_steal (self, stack,
-				     xb_opcode_new (XB_OPCODE_KIND_INDEXED_TEXT,
-						    xb_silo_node_get_text (silo, query_data->sn),
-						    query_data->sn->text,
-						    NULL));
+
+	if (!xb_machine_stack_push (self, stack, &op, error))
+		return FALSE;
+	xb_opcode_init (op, XB_OPCODE_KIND_INDEXED_TEXT,
+			xb_silo_node_get_text (silo, query_data->sn),
+			query_data->sn->text,
+			NULL);
 	return TRUE;
 }
 
@@ -1081,6 +1198,7 @@ xb_silo_machine_func_tail_cb (XbMachine *self,
 {
 	XbSilo *silo = XB_SILO (user_data);
 	XbSiloQueryData *query_data = (XbSiloQueryData *) exec_data;
+	XbOpcode *op;
 
 	/* optimize pass */
 	if (query_data == NULL) {
@@ -1088,11 +1206,13 @@ xb_silo_machine_func_tail_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	xb_machine_stack_push_steal (self, stack,
-				     xb_opcode_new (XB_OPCODE_KIND_INDEXED_TEXT,
-						    xb_silo_node_get_tail (silo, query_data->sn),
-						    query_data->sn->tail,
-						    NULL));
+
+	if (!xb_machine_stack_push (self, stack, &op, error))
+		return FALSE;
+	xb_opcode_init (op, XB_OPCODE_KIND_INDEXED_TEXT,
+			xb_silo_node_get_tail (silo, query_data->sn),
+			query_data->sn->tail,
+			NULL);
 	return TRUE;
 }
 
@@ -1112,8 +1232,7 @@ xb_silo_machine_func_first_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	xb_stack_push_bool (stack, query_data->position == 1);
-	return TRUE;
+	return xb_stack_push_bool (stack, query_data->position == 1, error);
 }
 
 static gboolean
@@ -1132,8 +1251,7 @@ xb_silo_machine_func_last_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	xb_stack_push_bool (stack, query_data->sn->next == 0);
-	return TRUE;
+	return xb_stack_push_bool (stack, query_data->sn->next == 0, error);
 }
 
 static gboolean
@@ -1152,8 +1270,7 @@ xb_silo_machine_func_position_cb (XbMachine *self,
 				     "cannot optimize: no silo to query");
 		return FALSE;
 	}
-	xb_machine_stack_push_integer (self, stack, query_data->position);
-	return TRUE;
+	return xb_machine_stack_push_integer (self, stack, query_data->position, error);
 }
 
 static gboolean
@@ -1164,24 +1281,32 @@ xb_silo_machine_func_search_cb (XbMachine *self,
 				gpointer exec_data,
 				GError **error)
 {
-	g_autoptr(XbOpcode) op1 = xb_machine_stack_pop (self, stack);
-	g_autoptr(XbOpcode) op2 = xb_machine_stack_pop (self, stack);
+	XbOpcode *head1 = NULL;
+	XbOpcode *head2 = NULL;
+	g_auto(XbOpcode) op1 = XB_OPCODE_INIT ();
+	g_auto(XbOpcode) op2 = XB_OPCODE_INIT ();
 
-	/* TEXT:TEXT */
-	if (xb_opcode_cmp_str (op1) && xb_opcode_cmp_str (op2)) {
-		xb_stack_push_bool (stack, xb_string_search (xb_opcode_get_str (op2),
-							     xb_opcode_get_str (op1)));
-		return TRUE;
+	if (xb_stack_get_size (stack) >= 2) {
+		head1 = xb_stack_peek (stack, xb_stack_get_size (stack) - 1);
+		head2 = xb_stack_peek (stack, xb_stack_get_size (stack) - 2);
+	}
+	if (head1 == NULL || !xb_opcode_cmp_str (head1) ||
+	    head2 == NULL || !xb_opcode_cmp_str (head2)) {
+		g_set_error (error,
+			     G_IO_ERROR,
+			     G_IO_ERROR_NOT_SUPPORTED,
+			     "%s:%s types not supported",
+			     (head1 != NULL) ? xb_opcode_kind_to_string (xb_opcode_get_kind (head1)) : "(null)",
+			     (head2 != NULL) ? xb_opcode_kind_to_string (xb_opcode_get_kind (head2)) : "(null)");
+		return FALSE;
 	}
 
-	/* fail */
-	g_set_error (error,
-		     G_IO_ERROR,
-		     G_IO_ERROR_NOT_SUPPORTED,
-		     "%s:%s types not supported",
-		     xb_opcode_kind_to_string (xb_opcode_get_kind (op1)),
-		     xb_opcode_kind_to_string (xb_opcode_get_kind (op2)));
-	return FALSE;
+	if (!xb_machine_stack_pop_two (self, stack, &op1, &op2, error))
+		return FALSE;
+
+	/* TEXT:TEXT */
+	return xb_stack_push_bool (stack, xb_string_search (xb_opcode_get_str (&op2),
+							    xb_opcode_get_str (&op1)), error);
 }
 
 static gboolean
@@ -1194,17 +1319,23 @@ xb_silo_machine_fixup_attr_text_cb (XbMachine *self,
 {
 	/* @foo -> attr(foo) */
 	if (g_str_has_prefix (text, "@")) {
-		XbOpcode *opcode;
-		opcode = xb_machine_opcode_func_new (self, "attr");
-		if (opcode == NULL) {
+		XbOpcode *op1;
+		XbOpcode *op2;
+
+		if (!_xb_stack_push_two (opcodes, &op1, &op2, error))
+			return FALSE;
+
+		xb_opcode_text_init (op1, text + 1);
+		if (!xb_machine_opcode_func_init (self, op2, "attr")) {
 			g_set_error_literal (error,
 					     G_IO_ERROR,
 					     G_IO_ERROR_NOT_SUPPORTED,
 					     "no attr opcode");
+			xb_stack_pop (opcodes, NULL, NULL);
+			xb_stack_pop (opcodes, NULL, NULL);
 			return FALSE;
 		}
-		xb_stack_push_steal (opcodes, xb_opcode_text_new (text + 1));
-		xb_stack_push_steal (opcodes, opcode);
+
 		*handled = TRUE;
 		return TRUE;
 	}
@@ -1233,6 +1364,9 @@ xb_silo_get_property (GObject *obj, guint prop_id, GValue *value, GParamSpec *ps
 	case PROP_VALID:
 		g_value_set_boolean (value, priv->valid);
 		break;
+	case PROP_ENABLE_NODE_CACHE:
+		g_value_set_boolean (value, priv->enable_node_cache);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, prop_id, pspec);
 		break;
@@ -1249,6 +1383,9 @@ xb_silo_set_property (GObject *obj, guint prop_id, const GValue *value, GParamSp
 		g_free (priv->guid);
 		priv->guid = g_value_dup_string (value);
 		break;
+	case PROP_ENABLE_NODE_CACHE:
+		xb_silo_set_enable_node_cache (self, g_value_get_boolean (value));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, prop_id, pspec);
 		break;
@@ -1259,14 +1396,13 @@ static void
 xb_silo_init (XbSilo *self)
 {
 	XbSiloPrivate *priv = GET_PRIVATE (self);
-	priv->file_monitors = g_hash_table_new_full (g_str_hash, g_str_equal,
-						     g_free, (GDestroyNotify) xb_silo_file_monitor_item_free);
-	priv->nodes = g_hash_table_new_full (g_direct_hash, g_direct_equal,
-					     NULL, (GDestroyNotify) g_object_unref);
+	priv->file_monitors = g_hash_table_new_full (g_file_hash, (GEqualFunc) g_file_equal,
+						     g_object_unref, (GDestroyNotify) xb_silo_file_monitor_item_free);
 	priv->strtab_tags = g_hash_table_new (g_str_hash, g_str_equal);
 	priv->strindex = g_hash_table_new (g_str_hash, g_str_equal);
 	priv->profile_str = g_string_new (NULL);
 
+	priv->nodes = NULL;  /* initialised when first used */
 	g_mutex_init (&priv->nodes_mutex);
 
 #ifdef HAVE_LIBSTEMMER
@@ -1305,6 +1441,7 @@ xb_silo_finalize (GObject *obj)
 	XbSilo *self = XB_SILO (obj);
 	XbSiloPrivate *priv = GET_PRIVATE (self);
 
+	g_clear_pointer (&priv->nodes, g_hash_table_unref);
 	g_mutex_clear (&priv->nodes_mutex);
 
 #ifdef HAVE_LIBSTEMMER
@@ -1318,7 +1455,6 @@ xb_silo_finalize (GObject *obj)
 	g_object_unref (priv->machine);
 	g_hash_table_unref (priv->strindex);
 	g_hash_table_unref (priv->file_monitors);
-	g_hash_table_unref (priv->nodes);
 	g_hash_table_unref (priv->strtab_tags);
 	if (priv->mmap != NULL)
 		g_mapped_file_unref (priv->mmap);
@@ -1352,6 +1488,32 @@ xb_silo_class_init (XbSiloClass *klass)
 				      G_PARAM_READABLE |
 				      G_PARAM_STATIC_NAME);
 	g_object_class_install_property (object_class, PROP_VALID, pspec);
+
+	/**
+	 * XbSilo:enable-node-cache:
+	 *
+	 * Whether to cache all #XbNode instances ever constructed in a single
+	 * cache in the #XbSilo, so that the same #XbNode instance is always
+	 * returned in query results for a given XPath. This is a form of
+	 * memoisation, and allows xb_node_get_data() and xb_node_set_data() to
+	 * be used.
+	 *
+	 * This is enabled by default to preserve compatibility with older
+	 * versions of libxmlb, but most clients will want to disable it. It
+	 * adds a large memory overhead (no #XbNode is ever finalised) but
+	 * achieves moderately low hit rates for typical XML parsing workloads
+	 * where most nodes are accessed only once or twice as they are
+	 * processed and then processing moves on to other nodes.
+	 *
+	 * This property can only be changed before the #XbSilo is passed
+	 * between threads. Changing it is not thread-safe.
+	 *
+	 * Since: 0.2.0
+	 */
+	pspec = g_param_spec_boolean ("enable-node-cache", NULL, NULL, TRUE,
+				      G_PARAM_READWRITE |
+				      G_PARAM_STATIC_NAME);
+	g_object_class_install_property (object_class, PROP_ENABLE_NODE_CACHE, pspec);
 }
 
 /**

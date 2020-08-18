@@ -7,11 +7,12 @@
 #pragma once
 
 #include "xb-silo-export.h"
+#include "xb-silo-private.h"
 
 G_BEGIN_DECLS
 
 GString		*xb_silo_export_with_root	(XbSilo		*self,
-						 XbNode		*root,
+						 XbSiloNode	*sroot,
 						 XbNodeExportFlags flags,
 						 GError		**error);
 

@@ -12,10 +12,10 @@
 #include <gio/gio.h>
 
 #include "xb-node-private.h"
+#include "xb-node-silo.h"
 #include "xb-silo-export-private.h"
 
 typedef struct {
-	GObject			 parent_instance;
 	XbSilo			*silo;
 	XbSiloNode		*sn;
 } XbNodePrivate;
@@ -30,6 +30,11 @@ G_DEFINE_TYPE_WITH_PRIVATE (XbNode, xb_node, G_TYPE_OBJECT)
  *
  * Gets any data that has been set on the node using xb_node_set_data().
  *
+ * This will only work across queries to the associated silo if the silo has
+ * its #XbSilo:enable-node-cache property set to %TRUE. Otherwise a new #XbNode
+ * may be constructed for future queries which return the same element as a
+ * result.
+ *
  * Returns: (transfer none): a #GBytes, or %NULL if not found
  *
  * Since: 0.1.0
@@ -37,8 +42,10 @@ G_DEFINE_TYPE_WITH_PRIVATE (XbNode, xb_node, G_TYPE_OBJECT)
 GBytes *
 xb_node_get_data (XbNode *self, const gchar *key)
 {
+	XbNodePrivate *priv = GET_PRIVATE (self);
 	g_return_val_if_fail (XB_IS_NODE (self), NULL);
 	g_return_val_if_fail (key != NULL, NULL);
+	g_return_val_if_fail (priv->silo, NULL);
 	return g_object_get_data (G_OBJECT (self), key);
 }
 
@@ -50,14 +57,21 @@ xb_node_get_data (XbNode *self, const gchar *key)
  *
  * Sets some data on the node which can be retrieved using xb_node_get_data().
  *
+ * This will only work across queries to the associated silo if the silo has
+ * its #XbSilo:enable-node-cache property set to %TRUE. Otherwise a new #XbNode
+ * may be constructed for future queries which return the same element as a
+ * result.
+ *
  * Since: 0.1.0
  **/
 void
 xb_node_set_data (XbNode *self, const gchar *key, GBytes *data)
 {
+	XbNodePrivate *priv = GET_PRIVATE (self);
 	g_return_if_fail (XB_IS_NODE (self));
 	g_return_if_fail (key != NULL);
 	g_return_if_fail (data != NULL);
+	g_return_if_fail (priv->silo);
 	g_object_set_data_full (G_OBJECT (self), key,
 				g_bytes_ref (data),
 				(GDestroyNotify) g_bytes_unref);
@@ -81,14 +95,14 @@ xb_node_get_sn (XbNode *self)
 }
 
 /**
- * xb_node_get_silo: (skip)
+ * xb_node_get_silo:
  * @self: a #XbNode
  *
  * Gets the #XbSilo for the node.
  *
  * Returns: (transfer none): a #XbSilo
  *
- * Since: 0.1.0
+ * Since: 0.2.0
  **/
 XbSilo *
 xb_node_get_silo (XbNode *self)
@@ -118,7 +132,7 @@ xb_node_get_root (XbNode *self)
 	sn = xb_silo_get_sroot (priv->silo);
 	if (sn == NULL)
 		return NULL;
-	return xb_silo_node_create (priv->silo, sn);
+	return xb_silo_node_create (priv->silo, sn, FALSE);
 }
 
 /**
@@ -142,7 +156,7 @@ xb_node_get_parent (XbNode *self)
 	sn = xb_silo_node_get_parent (priv->silo, priv->sn);
 	if (sn == NULL)
 		return NULL;
-	return xb_silo_node_create (priv->silo, sn);
+	return xb_silo_node_create (priv->silo, sn, FALSE);
 }
 
 /**
@@ -166,7 +180,7 @@ xb_node_get_next (XbNode *self)
 	sn = xb_silo_node_get_next (priv->silo, priv->sn);
 	if (sn == NULL)
 		return NULL;
-	return xb_silo_node_create (priv->silo, sn);
+	return xb_silo_node_create (priv->silo, sn, FALSE);
 }
 
 /**
@@ -190,7 +204,7 @@ xb_node_get_child (XbNode *self)
 	sn = xb_silo_node_get_child (priv->silo, priv->sn);
 	if (sn == NULL)
 		return NULL;
-	return xb_silo_node_create (priv->silo, sn);
+	return xb_silo_node_create (priv->silo, sn, FALSE);
 }
 
 /**
@@ -387,7 +401,7 @@ xb_node_export (XbNode *self, XbNodeExportFlags flags, GError **error)
 	GString *xml;
 	g_return_val_if_fail (XB_IS_NODE (self), NULL);
 	g_return_val_if_fail (error == NULL || *error == NULL, NULL);
-	xml = xb_silo_export_with_root (xb_node_get_silo (self), self, flags, error);
+	xml = xb_silo_export_with_root (xb_node_get_silo (self), xb_node_get_sn (self), flags, error);
 	if (xml == NULL)
 		return NULL;
 	return g_string_free (xml, FALSE);

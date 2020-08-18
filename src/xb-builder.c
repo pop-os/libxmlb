@@ -19,7 +19,6 @@
 #include "xb-builder-node-private.h"
 
 typedef struct {
-	GObject			 parent_instance;
 	GPtrArray		*sources;	/* of XbBuilderSource */
 	GPtrArray		*nodes;		/* of XbBuilderNode */
 	GPtrArray		*fixups;	/* of XbBuilderFixup */
@@ -221,7 +220,7 @@ xb_builder_compile_source (XbBuilderCompileHelper *helper,
 	g_autoptr(GPtrArray) children_copy = NULL;
 	g_autoptr(GInputStream) istream = NULL;
 	g_autoptr(GMarkupParseContext) ctx = NULL;
-	g_autoptr(GTimer) timer = g_timer_new ();
+	g_autoptr(GTimer) timer = xb_silo_start_profile (helper->silo);
 	g_autoptr(XbBuilderNode) root_tmp = xb_builder_node_new (NULL);
 	const GMarkupParser parser = {
 		xb_builder_compile_start_element_cb,
@@ -321,7 +320,7 @@ xb_builder_strtab_attr_name_cb (XbBuilderNode *bn, gpointer user_data)
 	if (xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_IGNORE))
 		return FALSE;
 	attrs = xb_builder_node_get_attrs (bn);
-	for (guint i = 0; i < attrs->len; i++) {
+	for (guint i = 0; attrs != NULL && i < attrs->len; i++) {
 		XbBuilderNodeAttr *attr = g_ptr_array_index (attrs, i);
 		attr->name_idx = xb_builder_compile_add_to_strtab (helper, attr->name);
 	}
@@ -340,7 +339,7 @@ xb_builder_strtab_attr_value_cb (XbBuilderNode *bn, gpointer user_data)
 	if (xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_IGNORE))
 		return FALSE;
 	attrs = xb_builder_node_get_attrs (bn);
-	for (guint i = 0; i < attrs->len; i++) {
+	for (guint i = 0; attrs != NULL && i < attrs->len; i++) {
 		XbBuilderNodeAttr *attr = g_ptr_array_index (attrs, i);
 		attr->value_idx = xb_builder_compile_add_to_strtab (helper, attr->value);
 	}
@@ -454,7 +453,7 @@ xb_builder_nodetab_write_node (XbBuilderNodetabHelper *helper, XbBuilderNode *bn
 	GPtrArray *attrs = xb_builder_node_get_attrs (bn);
 	XbSiloNode sn = {
 		.is_node	= TRUE,
-		.nr_attrs	= attrs->len,
+		.nr_attrs	= (attrs != NULL) ? attrs->len : 0,
 		.element_name	= xb_builder_node_get_element_idx (bn),
 		.next		= 0x0,
 		.parent		= 0x0,
@@ -480,7 +479,7 @@ xb_builder_nodetab_write_node (XbBuilderNodetabHelper *helper, XbBuilderNode *bn
 	XB_SILO_APPENDBUF (helper->buf, &sn, sizeof(XbSiloNode));
 
 	/* add to the buf */
-	for (guint i = 0; i < attrs->len; i++) {
+	for (guint i = 0; attrs != NULL && i < attrs->len; i++) {
 		XbBuilderNodeAttr *ba = g_ptr_array_index (attrs, i);
 		XbSiloAttr attr = {
 			.attr_name	= ba->name_idx,
@@ -648,11 +647,18 @@ xb_builder_watch_source (XbBuilder *self,
 {
 	XbBuilderPrivate *priv = GET_PRIVATE (self);
 	GFile *file = xb_builder_source_get_file (source);
+	g_autoptr(GFile) watched_file = NULL;
 	if (file == NULL)
 		return TRUE;
-	if ((xb_builder_source_get_flags (source) & XB_BUILDER_SOURCE_FLAG_WATCH_FILE) == 0)
+	if ((xb_builder_source_get_flags (source) & (XB_BUILDER_SOURCE_FLAG_WATCH_FILE | XB_BUILDER_SOURCE_FLAG_WATCH_DIRECTORY)) == 0)
 		return TRUE;
-	if (!xb_silo_watch_file (priv->silo, file, cancellable, error))
+
+	if (xb_builder_source_get_flags (source) & XB_BUILDER_SOURCE_FLAG_WATCH_DIRECTORY)
+		watched_file = g_file_get_parent (file);
+	else
+		watched_file = g_object_ref (file);
+
+	if (!xb_silo_watch_file (priv->silo, watched_file, cancellable, error))
 		return FALSE;
 	return TRUE;
 }
@@ -701,7 +707,7 @@ xb_builder_compile (XbBuilder *self, XbBuilderCompileFlags flags, GCancellable *
 		.buf = NULL,
 	};
 	g_autoptr(GPtrArray) nodes_to_destroy = g_ptr_array_new ();
-	g_autoptr(GTimer) timer = g_timer_new ();
+	g_autoptr(GTimer) timer = xb_silo_start_profile (priv->silo);
 	g_autoptr(XbBuilderCompileHelper) helper = NULL;
 
 	g_return_val_if_fail (XB_IS_BUILDER (self), NULL);
@@ -914,6 +920,7 @@ xb_builder_ensure (XbBuilder *self, GFile *file, XbBuilderCompileFlags flags,
 		if (g_strcmp0 (xb_silo_get_guid (silo_tmp), guid) == 0 ||
 		    (flags & XB_BUILDER_COMPILE_FLAG_IGNORE_GUID) > 0) {
 			g_autoptr(GBytes) blob = xb_silo_get_bytes (silo_tmp);
+
 			g_debug ("loading silo with file contents");
 			if (!xb_silo_load_from_bytes (priv->silo, blob,
 						      load_flags, error))

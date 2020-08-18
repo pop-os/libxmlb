@@ -16,7 +16,6 @@
 #include "xb-builder-source-private.h"
 
 typedef struct {
-	GObject			 parent_instance;
 	GInputStream		*istream;
 	GFile			*file;
 	GPtrArray		*fixups;	/* of XbBuilderFixup */
@@ -264,56 +263,6 @@ xb_builder_source_add_fixup (XbBuilderSource *self, XbBuilderFixup *fixup)
 	g_return_if_fail (XB_IS_BUILDER_SOURCE (self));
 	g_return_if_fail (XB_IS_BUILDER_FIXUP (fixup));
 	g_ptr_array_add (priv->fixups, g_object_ref (fixup));
-}
-
-/**
- * xb_builder_source_add_node_func:
- * @self: a #XbBuilderSource
- * @id: a text ID value, e.g. `AppStreamUpgrade`
- * @func: a callback
- * @user_data: user pointer to pass to @func, or %NULL
- * @user_data_free: a function which gets called to free @user_data, or %NULL
- *
- * Adds a function that will get run on every #XbBuilderNode compile creates.
- *
- * Since: 0.1.0
- **/
-void
-xb_builder_source_add_node_func (XbBuilderSource *self,
-				 const gchar *id,
-				 XbBuilderSourceNodeFunc func,
-				 gpointer user_data,
-				 GDestroyNotify user_data_free)
-{
-	g_autoptr(XbBuilderFixup) fixup = NULL;
-	/* close enough... */
-	fixup = xb_builder_fixup_new (id, (XbBuilderFixupFunc) func,
-				      user_data, user_data_free);
-	xb_builder_source_add_fixup (self, fixup);
-}
-
-/**
- * xb_builder_source_add_converter:
- * @self: a #XbBuilderSource
- * @content_types: mimetypes, e.g. `application/x-desktop,application/gzip`
- * @func: a callback
- * @user_data: user pointer to pass to @func, or %NULL
- * @user_data_free: a function which gets called to free @user_data, or %NULL
- *
- * This function is now deprecated, and does nothing.
- *
- * See also: xb_builder_source_add_adapter()
- *
- * Since: 0.1.1
- **/
-void
-xb_builder_source_add_converter (XbBuilderSource *self,
-				 const gchar *content_types,
-				 XbBuilderSourceConverterFunc func,
-				 gpointer user_data,
-				 GDestroyNotify user_data_free)
-{
-	g_warning ("%s() does nothing", G_STRFUNC);
 }
 
 static void

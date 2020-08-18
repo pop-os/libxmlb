@@ -1,5 +1,5 @@
 project('libxmlb', 'c',
-  version : '0.1.15',
+  version : '0.2.0',
   license : 'LGPL-2.1+',
   meson_version : '>=0.47.0',
   default_options : ['warning_level=2', 'c_std=c99'],
@@ -18,7 +18,7 @@ conf.set('XMLB_MICRO_VERSION', libxmlb_micro_version)
 conf.set_quoted('PACKAGE_VERSION', libxmlb_version)
 
 # libtool versioning - this applies to libxmlb
-lt_current = '1'
+lt_current = '2'
 lt_revision = '0'
 lt_age = '0'
 lt_version = '@0@.@1@.@2@'.format(lt_current, lt_age, lt_revision)
@@ -27,7 +27,7 @@ configinc = include_directories('.')
 
 # get suported warning flags
 warning_flags = [
-  '-Waggregate-return',
+  '-Wno-aggregate-return',
   '-Wunused',
   '-Warray-bounds',
   '-Wcast-align',

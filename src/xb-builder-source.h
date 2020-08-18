@@ -35,6 +35,9 @@ struct _XbBuilderSourceClass {
  * @XB_BUILDER_SOURCE_FLAG_NONE:		No extra flags to use
  * @XB_BUILDER_SOURCE_FLAG_LITERAL_TEXT:	Do not attempt to repair XML whitespace
  * @XB_BUILDER_SOURCE_FLAG_WATCH_FILE:		Watch the source file for changes
+ * @XB_BUILDER_SOURCE_FLAG_WATCH_DIRECTORY:	Watch the directory containing the source file for changes
+ * 	(for example, if watching all the sources in a directory — this allows the
+ * 	file monitors to be shared)
  *
  * The flags for converting to XML.
  **/
@@ -42,6 +45,7 @@ typedef enum {
 	XB_BUILDER_SOURCE_FLAG_NONE		= 0,		/* Since: 0.1.0 */
 	XB_BUILDER_SOURCE_FLAG_LITERAL_TEXT	= 1 << 0,	/* Since: 0.1.0 */
 	XB_BUILDER_SOURCE_FLAG_WATCH_FILE	= 1 << 1,	/* Since: 0.1.0 */
+	XB_BUILDER_SOURCE_FLAG_WATCH_DIRECTORY	= 1 << 2,	/* Since: 0.2.0 */
 	/*< private >*/
 	XB_BUILDER_SOURCE_FLAG_LAST
 } XbBuilderSourceFlags;
@@ -49,11 +53,6 @@ typedef enum {
 typedef gboolean (*XbBuilderSourceNodeFunc)	(XbBuilderSource	*self,
 						 XbBuilderNode		*bn,
 						 gpointer		 user_data,
-						 GError			**error);
-typedef GInputStream *(*XbBuilderSourceConverterFunc) (XbBuilderSource	*self,
-						 GFile			*file,
-						 gpointer		 user_data,
-						 GCancellable		*cancellable,
 						 GError			**error);
 typedef GInputStream *(*XbBuilderSourceAdapterFunc) (XbBuilderSource	*self,
 						 XbBuilderSourceCtx	*ctx,
@@ -79,20 +78,8 @@ void		 xb_builder_source_set_info	(XbBuilderSource	*self,
 						 XbBuilderNode		*info);
 void		 xb_builder_source_set_prefix	(XbBuilderSource	*self,
 						 const gchar		*prefix);
-void		 xb_builder_source_add_node_func (XbBuilderSource	*self,
-						 const gchar		*id,
-						 XbBuilderSourceNodeFunc func,
-						 gpointer		 user_data,
-						 GDestroyNotify		 user_data_free)
-G_DEPRECATED_FOR(xb_builder_source_add_fixup);
 void		 xb_builder_source_add_fixup	(XbBuilderSource	*self,
 						 XbBuilderFixup		*fixup);
-void		 xb_builder_source_add_converter (XbBuilderSource	*self,
-						 const gchar		*content_types,
-						 XbBuilderSourceConverterFunc func,
-						 gpointer		 user_data,
-						 GDestroyNotify		 user_data_free)
-G_DEPRECATED_FOR(xb_builder_source_add_adapter);
 void		 xb_builder_source_add_adapter	(XbBuilderSource	*self,
 						 const gchar		*content_types,
 						 XbBuilderSourceAdapterFunc func,
