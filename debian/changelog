@@ -1,3 +1,11 @@
+libxmlb (0.2.0-1) UNRELASED; urgency=medium
+
+  * New upstream version.
+  * drop all patches, now upstream
+  * Update packages for soname bump that broke ABI
+
+ -- Mario Limonciello <mario.limonciello@dell.com>  Tue, 18 Aug 2020 10:57:55 -0500
+
 libxmlb (0.1.15-2) unstable; urgency=medium
 
   * Team upload.
