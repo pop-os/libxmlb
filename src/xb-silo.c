@@ -41,8 +41,6 @@ typedef struct {
 	XbMachine		*machine;
 	XbSiloProfileFlags	 profile_flags;
 	GString			*profile_str;
-	GRWLock			 query_cache_mutex;
-	GHashTable		*query_cache;
 #ifdef HAVE_LIBSTEMMER
 	struct sb_stemmer	*stemmer_ctx;	/* lazy loaded */
 	GMutex			 stemmer_mutex;
@@ -210,7 +208,7 @@ xb_silo_get_attr (XbSilo *self, guint32 off, guint8 idx)
 }
 
 /* private */
-guint32
+guint8
 xb_silo_node_get_size (XbSiloNode *n)
 {
 	if (n->is_node) {
@@ -1403,8 +1401,6 @@ xb_silo_init (XbSilo *self)
 	priv->strtab_tags = g_hash_table_new (g_str_hash, g_str_equal);
 	priv->strindex = g_hash_table_new (g_str_hash, g_str_equal);
 	priv->profile_str = g_string_new (NULL);
-	priv->query_cache = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
-	g_rw_lock_init (&priv->query_cache_mutex);
 
 	priv->nodes = NULL;  /* initialised when first used */
 	g_mutex_init (&priv->nodes_mutex);
@@ -1456,8 +1452,6 @@ xb_silo_finalize (GObject *obj)
 
 	g_free (priv->guid);
 	g_string_free (priv->profile_str, TRUE);
-	g_hash_table_unref (priv->query_cache);
-	g_rw_lock_clear (&priv->query_cache_mutex);
 	g_object_unref (priv->machine);
 	g_hash_table_unref (priv->strindex);
 	g_hash_table_unref (priv->file_monitors);
@@ -1535,68 +1529,4 @@ XbSilo *
 xb_silo_new (void)
 {
 	return g_object_new (XB_TYPE_SILO, NULL);
-}
-
-/**
- * xb_silo_lookup_query:
- * @self: an #XbSilo
- * @xpath: an XPath query string
- *
- * Create an #XbQuery from the given @xpath XPath string, or return it from the
- * query cache in the #XbSilo.
- *
- * @xpath must be valid: it is a programmer error if creating the query fails
- * (i.e. if xb_query_new() returns an error).
- *
- * This function is thread-safe.
- *
- * Returns: (transfer full): an #XbQuery representing @xpath
- * Since: 0.3.0
- */
-XbQuery *
-xb_silo_lookup_query (XbSilo *self, const gchar *xpath)
-{
-	XbSiloPrivate *priv = GET_PRIVATE (self);
-	XbQuery *result;
-
-	g_rw_lock_reader_lock (&priv->query_cache_mutex);
-	result = g_hash_table_lookup (priv->query_cache, xpath);
-	g_rw_lock_reader_unlock (&priv->query_cache_mutex);
-
-	if (result != NULL) {
-		g_object_ref (result);
-		g_debug ("Found cached query ‘%s’ (%p) in silo %p", xpath, result, self);
-	} else {
-		g_autoptr(XbQuery) query = NULL;
-
-		/* check again with an exclusive lock */
-		g_rw_lock_writer_lock (&priv->query_cache_mutex);
-		result = g_hash_table_lookup (priv->query_cache, xpath);
-		if (result != NULL) {
-			g_object_ref (result);
-			g_debug ("Found cached query ‘%s’ (%p) in silo %p", xpath, result, self);
-		} else {
-			g_autoptr(GError) error_local = NULL;
-
-			query = xb_query_new (self, xpath, &error_local);
-			if (query == NULL) {
-				/* This should not happen: the caller should
-				 * have written a valid query. */
-				g_error ("Invalid XPath query ‘%s’: %s",
-					 xpath, error_local->message);
-				g_rw_lock_writer_unlock (&priv->query_cache_mutex);
-				g_assert_not_reached ();
-				return NULL;
-			}
-
-			result = g_object_ref (query);
-
-			g_hash_table_insert (priv->query_cache, g_strdup (xpath), g_steal_pointer (&query));
-			g_debug ("Caching query ‘%s’ (%p) in silo %p; query cache now has %u entries",
-				 xpath, query, self, g_hash_table_size (priv->query_cache));
-		}
-		g_rw_lock_writer_unlock (&priv->query_cache_mutex);
-	}
-
-	return result;
 }

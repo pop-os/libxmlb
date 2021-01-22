@@ -9,7 +9,6 @@
 #include "xb-machine.h"
 #include "xb-node.h"
 #include "xb-silo.h"
-#include "xb-query.h"
 
 #include "xb-string-private.h"
 
@@ -67,7 +66,7 @@ guint32		 xb_silo_get_strtab_idx		(XbSilo		*self,
 						 const gchar	*element);
 guint32		 xb_silo_get_offset_for_node	(XbSilo		*self,
 						 XbSiloNode	*n);
-guint32		 xb_silo_node_get_size		(XbSiloNode	*n);
+guint8		 xb_silo_node_get_size		(XbSiloNode	*n);
 XbSiloNode	*xb_silo_get_sroot		(XbSilo		*self);
 XbSiloNode	*xb_silo_node_get_parent	(XbSilo		*self,
 						 XbSiloNode	*n);

@@ -10,7 +10,6 @@
 
 #include "xb-node.h"
 #include "xb-query.h"
-#include "xb-query-context.h"
 #include "xb-silo.h"
 
 G_BEGIN_DECLS
@@ -19,27 +18,15 @@ GPtrArray	*xb_silo_query			(XbSilo		*self,
 						 const gchar	*xpath,
 						 guint		 limit,
 						 GError		**error);
-
 GPtrArray	*xb_silo_query_full		(XbSilo		*self,
 						 XbQuery	*query,
 						 GError		**error);
-GPtrArray	*xb_silo_query_with_context	(XbSilo		*self,
-						 XbQuery	*query,
-						 XbQueryContext	*context,
-						 GError		**error);
-
 XbNode		*xb_silo_query_first		(XbSilo		*self,
 						 const gchar	*xpath,
 						 GError		**error);
-
 XbNode		*xb_silo_query_first_full	(XbSilo		*self,
 						 XbQuery	*query,
 						 GError		**error);
-XbNode		*xb_silo_query_first_with_context(XbSilo	*self,
-						 XbQuery	*query,
-						 XbQueryContext	*context,
-						 GError		**error);
-
 gboolean	 xb_silo_query_build_index	(XbSilo		*self,
 						 const gchar	*xpath,
 						 const gchar	*attr,

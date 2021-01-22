@@ -6,8 +6,6 @@
 
 #pragma once
 
-#include <glib.h>
-#include <gio/gio.h>
 #include <glib-object.h>
 
 #include "xb-node.h"
@@ -98,10 +96,5 @@ const gchar	*xb_silo_get_profile_string		(XbSilo		*self);
 gboolean	 xb_silo_get_enable_node_cache		(XbSilo		*self);
 void		 xb_silo_set_enable_node_cache		(XbSilo		*self,
 							 gboolean	 enable_node_cache);
-
-#include "xb-query.h"
-
-XbQuery		*xb_silo_lookup_query			(XbSilo		*self,
-							 const gchar	*xpath);
 
 G_END_DECLS

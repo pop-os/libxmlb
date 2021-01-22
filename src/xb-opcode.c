@@ -183,7 +183,7 @@ xb_opcode_cmp_str (XbOpcode *self)
 
 /* private */
 gboolean
-xb_opcode_is_binding (XbOpcode *self)
+xb_opcode_is_bound (XbOpcode *self)
 {
 	return (self->kind & XB_OPCODE_FLAG_BOUND) > 0;
 }
@@ -334,8 +334,7 @@ xb_opcode_func_init (XbOpcode *opcode, guint32 func)
  * @opcode: a stack allocated #XbOpcode to initialise
  *
  * Initialises a stack allocated #XbOpcode to contain a bind variable. A value
- * needs to be assigned to this opcode at runtime using
- * xb_value_bindings_bind_str() or xb_value_bindings_bind_val().
+ * needs to be assigned to this opcode at runtime using xb_query_bind_str().
  *
  * Since: 0.2.0
  **/

@@ -18,13 +18,11 @@
 #include <libxmlb/xb-node-query.h>
 #include <libxmlb/xb-node-silo.h>
 #include <libxmlb/xb-opcode.h>
-#include <libxmlb/xb-query-context.h>
 #include <libxmlb/xb-silo-export.h>
 #include <libxmlb/xb-silo.h>
 #include <libxmlb/xb-silo-query.h>
 #include <libxmlb/xb-stack.h>
 #include <libxmlb/xb-string.h>
-#include <libxmlb/xb-value-bindings.h>
 #include <libxmlb/xb-version.h>
 
 #undef __LIBXMLB_H_INSIDE__

@@ -210,34 +210,3 @@ LIBXMLB_0.2.0 {
     xb_stack_push;
   local: *;
 } LIBXMLB_0.1.15;
-
-LIBXMLB_0.3.0 {
-  global:
-    xb_machine_run_with_bindings;
-    xb_node_query_first_with_context;
-    xb_node_query_with_context;
-    xb_query_context_clear;
-    xb_query_context_copy;
-    xb_query_context_free;
-    xb_query_context_get_bindings;
-    xb_query_context_get_flags;
-    xb_query_context_get_limit;
-    xb_query_context_get_type;
-    xb_query_context_init;
-    xb_query_context_set_flags;
-    xb_query_context_set_limit;
-    xb_silo_lookup_query;
-    xb_silo_query_first_with_context;
-    xb_silo_query_with_context;
-    xb_value_bindings_bind_str;
-    xb_value_bindings_bind_val;
-    xb_value_bindings_clear;
-    xb_value_bindings_copy;
-    xb_value_bindings_copy_binding;
-    xb_value_bindings_free;
-    xb_value_bindings_get_type;
-    xb_value_bindings_init;
-    xb_value_bindings_is_bound;
-    xb_value_bindings_lookup_opcode;
-  local: *;
-} LIBXMLB_0.2.0;

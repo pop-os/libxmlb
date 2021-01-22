@@ -12,7 +12,6 @@
 #include <glib-unix.h>
 #endif
 #include <gio/gio.h>
-#include <locale.h>
 
 #include "xb-builder.h"
 #include "xb-silo-export.h"
@@ -405,7 +404,7 @@ xb_tool_compile (XbToolPrivate *priv, gchar **values, GError **error)
 	silo = xb_builder_ensure (builder, file_dst,
 				  XB_BUILDER_COMPILE_FLAG_WATCH_BLOB |
 				  XB_BUILDER_COMPILE_FLAG_IGNORE_INVALID |
-				  XB_BUILDER_COMPILE_FLAG_NATIVE_LANGS,
+				  XB_BUILDER_COMPILE_FLAG_SINGLE_LANG,
 				  NULL, error);
 	if (silo == NULL)
 		return FALSE;
@@ -458,8 +457,6 @@ main (int argc, char *argv[])
 			"Show profiling information", NULL },
 		{ NULL}
 	};
-
-	setlocale (LC_ALL, "");
 
 	/* do not let GIO start a session bus */
 	g_setenv ("GIO_USE_VFS", "local", 1);

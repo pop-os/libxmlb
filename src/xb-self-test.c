@@ -7,7 +7,6 @@
 #include "config.h"
 
 #include <gio/gio.h>
-#include <locale.h>
 
 #include "xb-builder.h"
 #include "xb-builder-node.h"
@@ -294,7 +293,6 @@ xb_predicate_optimize_func (void)
 		{ "999>=123",		"True" },	/* success! */
 		{ "not(0)",		"True" },	/* success! */
 		{ "lower-case('Fire')",	"'fire'" },
-		{ "upper-case('Τάχιστη')", "'ΤΆΧΙΣΤΗ'" },
 		{ "upper-case(lower-case('Fire'))",
 					"'FIRE'" },	/* 2nd pass */
 		/* sentinel */
@@ -352,7 +350,7 @@ xb_builder_func (void)
 		"  </header>\n"
 		"  <component type=\"desktop\" attr=\"value\">\n"
 		"    <id>gimp.desktop</id>\n"
-		"    <name>GIMP &amp; Friendẞ</name>\n"
+		"    <name>GIMP &amp; Friends</name>\n"
 		"    <id>org.gnome.Gimp.desktop</id>\n"
 		"  </component>\n"
 		"  <component type=\"desktop\">\n"
@@ -388,7 +386,7 @@ xb_builder_func (void)
 
 	/* check size */
 	bytes = xb_silo_get_bytes (silo);
-	g_assert_cmpint (g_bytes_get_size (bytes), ==, 607);
+	g_assert_cmpint (g_bytes_get_size (bytes), ==, 605);
 }
 
 static void
@@ -576,7 +574,7 @@ xb_builder_ensure_func (void)
 		"  </header>\n"
 		"  <component type=\"desktop\" attr=\"value\">\n"
 		"    <id>gimp.desktop</id>\n"
-		"    <name>GIMP &amp; Friendẞ</name>\n"
+		"    <name>GIMP &amp; Friends</name>\n"
 		"    <id>org.gnome.Gimp.desktop</id>\n"
 		"  </component>\n"
 		"  <component type=\"desktop\">\n"
@@ -1016,38 +1014,6 @@ xb_node_data_func (void)
 }
 
 static void
-xb_node_export_func (void)
-{
-	g_autoptr(GError) error = NULL;
-	g_autoptr(XbNode) n = NULL;
-	g_autoptr(XbSilo) silo = NULL;
-	g_autofree gchar *xml_default = NULL;
-	g_autofree gchar *xml_collapsed = NULL;
-
-	/* import from XML */
-	silo = xb_silo_new_from_xml ("<component attr1=\"val1\" attr2=\"val2\"/>", &error);
-	g_assert_no_error (error);
-	g_assert_nonnull (silo);
-
-	/* get node */
-	n = xb_silo_query_first (silo, "component", &error);
-	g_assert_no_error (error);
-	g_assert_nonnull (n);
-
-	/* export default */
-	xml_default = xb_node_export (n, XB_NODE_EXPORT_FLAG_NONE, &error);
-	g_assert_no_error (error);
-	g_assert_nonnull (xml_default);
-	g_assert_cmpstr (xml_default, ==, "<component attr1=\"val1\" attr2=\"val2\"></component>");
-
-	/* export collapsed */
-	xml_collapsed = xb_node_export (n, XB_NODE_EXPORT_FLAG_COLLAPSE_EMPTY, &error);
-	g_assert_no_error (error);
-	g_assert_nonnull (xml_collapsed);
-	g_assert_cmpstr (xml_collapsed, ==, "<component attr1=\"val1\" attr2=\"val2\" />");
-}
-
-static void
 xb_xpath_parent_subnode_func (void)
 {
 	g_autofree gchar *xml2 = NULL;
@@ -1182,7 +1148,7 @@ xb_xpath_query_func (void)
 
 	/* query with an OR, all sections contains an unknown element */
 	n = xb_silo_query_first (silo, "components/dave|components/mike", &error);
-	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT);
 	g_assert_null (n);
 }
 
@@ -1231,7 +1197,6 @@ xb_xpath_func (void)
 	"  <component type=\"desktop\">\n"
 	"    <id>gimp.desktop</id>\n"
 	"    <id>org.gnome.Gimp.desktop</id>\n"
-	"    <name>Mêẞ</name>\n"
 	"    <custom>\n"
 	"      <value key=\"KEY\">TRUE</value>\n"
 	"    </custom>\n"
@@ -1279,19 +1244,19 @@ xb_xpath_func (void)
 
 	/* query that doesn't find anything */
 	n = xb_silo_query_first (silo, "dave", &error);
-	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT);
 	g_assert_null (n);
 	g_clear_error (&error);
 	g_clear_object (&n);
 
 	n = xb_silo_query_first (silo, "dave/dave", &error);
-	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT);
 	g_assert_null (n);
 	g_clear_error (&error);
 	g_clear_object (&n);
 
 	n = xb_silo_query_first (silo, "components/dave", &error);
-	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT);
 	g_assert_null (n);
 	g_clear_error (&error);
 	g_clear_object (&n);
@@ -1382,13 +1347,6 @@ xb_xpath_func (void)
 	g_assert_no_error (error);
 	g_assert_nonnull (n);
 	g_assert_cmpstr (xb_node_get_text (n), ==, "gimp.desktop");
-	g_clear_object (&n);
-
-	/* query no normalize */
-	n = xb_silo_query_first (silo, "components/component/name", &error);
-	g_assert_no_error (error);
-	g_assert_nonnull (n);
-	g_assert_cmpstr (xb_node_get_text (n), ==, "Mêẞ");
 	g_clear_object (&n);
 
 	/* query with stem */
@@ -1552,35 +1510,6 @@ xb_builder_native_lang_func (void)
 	g_assert_nonnull (n);
 	tmp = xb_node_export (n, XB_NODE_EXPORT_FLAG_INCLUDE_SIBLINGS, &error);
 	g_assert_cmpstr (tmp, ==, "<p xml:lang=\"fr\">Salut</p><p xml:lang=\"fr\">Au revoir</p>");
-}
-
-static void
-xb_builder_comments_func (void)
-{
-	gboolean ret;
-	g_autoptr(GError) error = NULL;
-	g_autofree gchar *str = NULL;
-	g_autoptr(XbBuilder) builder = xb_builder_new ();
-	g_autoptr(XbSilo) silo = NULL;
-	const gchar *xml =
-	"<?xml version=\"1.0\" ?>\n"
-	"<components>\n"
-	"  <!-- one -->\n"
-	"  <!-- two -->\n"
-	"</components>\n";
-
-	/* import XML */
-	ret = xb_test_import_xml (builder, xml, &error);
-	g_assert_no_error (error);
-	g_assert_true (ret);
-	silo = xb_builder_compile (builder, XB_BUILDER_COMPILE_FLAG_NONE, NULL, &error);
-	g_assert_no_error (error);
-	g_assert_nonnull (silo);
-
-	/* export */
-	str = xb_silo_export (silo, XB_NODE_EXPORT_FLAG_NONE, &error);
-	g_assert_no_error (error);
-	g_assert_cmpstr (str, ==, "<components></components>");
 }
 
 static void
@@ -1753,7 +1682,6 @@ xb_xpath_prepared_func (void)
 	g_autoptr(XbBuilder) builder = xb_builder_new ();
 	g_autoptr(XbSilo) silo = NULL;
 	g_autoptr(XbQuery) query = NULL;
-	g_auto(XbQueryContext) context = XB_QUERY_CONTEXT_INIT ();
 	g_autoptr(XbNode) component = NULL;
 	g_autoptr(GPtrArray) components = NULL;
 	const gchar *xml =
@@ -1786,8 +1714,10 @@ xb_xpath_prepared_func (void)
 	query = xb_query_new (silo, "id[text()=?]/..", &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (query);
-	xb_value_bindings_bind_str (xb_query_context_get_bindings (&context), 0, "gimp.desktop", NULL);
-	components = xb_node_query_with_context (component, query, &context, &error);
+	ret = xb_query_bind_str (query, 0, "gimp.desktop", &error);
+	g_assert_no_error (error);
+	g_assert_true (ret);
+	components = xb_node_query_full (component, query, &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (components);
 	g_assert_cmpint (components->len, ==, 1);
@@ -1824,7 +1754,7 @@ xb_xpath_query_reverse_func (void)
 	query = xb_query_new_full (silo, "names/name", XB_QUERY_FLAG_REVERSE, &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (query);
-	names = xb_silo_query_with_context (silo, query, NULL, &error);
+	names = xb_silo_query_full (silo, query, &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (names);
 	g_assert_cmpint (names->len, ==, 3);
@@ -1860,10 +1790,10 @@ xb_xpath_query_force_node_cache_func (void)
 				   XB_QUERY_FLAG_FORCE_NODE_CACHE, &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (query);
-	n1 = xb_silo_query_first_with_context (silo, query, NULL, &error);
+	n1 = xb_silo_query_first_full (silo, query, &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (n1);
-	n2 = xb_silo_query_first_with_context (silo, query, NULL, &error);
+	n2 = xb_silo_query_first_full (silo, query, &error);
 	g_assert_no_error (error);
 	g_assert_nonnull (n2);
 	g_assert (n1 == n2);
@@ -2492,8 +2422,6 @@ main (int argc, char **argv)
 	g_log_set_fatal_mask (NULL, G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL);
 	g_setenv ("G_MESSAGES_DEBUG", "all", TRUE);
 
-	setlocale (LC_ALL, "");
-
 	/* tests go here */
 	g_test_add_func ("/libxmlb/common", xb_common_func);
 	g_test_add_func ("/libxmlb/common{union}", xb_common_union_func);
@@ -2503,9 +2431,7 @@ main (int argc, char **argv)
 	g_test_add_func ("/libxmlb/stack", xb_stack_func);
 	g_test_add_func ("/libxmlb/stack{peek}", xb_stack_peek_func);
 	g_test_add_func ("/libxmlb/node{data}", xb_node_data_func);
-	g_test_add_func ("/libxmlb/node{export}", xb_node_export_func);
 	g_test_add_func ("/libxmlb/builder", xb_builder_func);
-	g_test_add_func ("/libxmlb/builder{comments}", xb_builder_comments_func);
 	g_test_add_func ("/libxmlb/builder{native-lang}", xb_builder_native_lang_func);
 	g_test_add_func ("/libxmlb/builder{native-lang-nested}", xb_builder_native_lang2_func);
 	g_test_add_func ("/libxmlb/builder{native-lang-locale}", xb_builder_native_lang_no_locales_func);

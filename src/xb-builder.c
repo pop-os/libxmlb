@@ -170,9 +170,14 @@ xb_builder_compile_text_cb (GMarkupParseContext *context,
 		xb_builder_node_set_tail (bc, text, text_len);
 		return;
 	}
-
-	/* always set a tail, even if already set */
-	xb_builder_node_set_tail (bn, text, text_len);
+	if (!xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_HAS_TAIL)) {
+		xb_builder_node_set_tail (bn, text, text_len);
+		return;
+	}
+	g_set_error (error,
+		     G_IO_ERROR,
+		     G_IO_ERROR_INVALID_DATA,
+		     "Mismatched XML; cannot store %s", text);
 }
 
 /**
@@ -749,8 +754,7 @@ xb_builder_compile (XbBuilder *self, XbBuilderCompileFlags flags, GCancellable *
 			root = g_object_ref (helper->root);
 		}
 
-		if (priv->profile_flags & XB_SILO_PROFILE_FLAG_DEBUG)
-			g_debug ("compiling %s…", source_guid);
+		g_debug ("compiling %s…", source_guid);
 		if (!xb_builder_compile_source (helper, source, root,
 						cancellable, &error_local)) {
 			if (flags & XB_BUILDER_COMPILE_FLAG_IGNORE_INVALID) {
