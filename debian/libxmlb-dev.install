@@ -1,6 +1,6 @@
 usr/include/
 usr/lib/*/*.so
 usr/lib/*/pkgconfig
+usr/lib/*/xb-tool
 usr/share/gir-1.0
 usr/share/gtk-doc
-usr/lib/*/xb-tool

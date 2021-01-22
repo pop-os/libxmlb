@@ -5,15 +5,15 @@ Maintainer: Debian EFI team <debian-efi@lists.debian.org>
 Uploaders: Steve McIntyre <93sam@debian.org>,
            Matthias Klumpp <mak@debian.org>,
            Mario Limonciello <mario.limonciello@dell.com>
-Build-Depends: debhelper-compat (=12),
-	       gir1.2-glib-2.0,
-	       gobject-introspection,
-	       gtk-doc-tools,
-	       libglib2.0-dev,
-	       libglib2.0-doc,
-	       libgirepository1.0-dev,
-	       meson (>= 0.52.0),
-	       shared-mime-info,
+Build-Depends: debhelper-compat (= 12),
+               gir1.2-glib-2.0,
+               gobject-introspection,
+               gtk-doc-tools,
+               libgirepository1.0-dev,
+               libglib2.0-dev,
+               libglib2.0-doc,
+               meson (>= 0.52.0),
+               shared-mime-info
 Standards-Version: 4.5.0
 Homepage: https://github.com/hughsie/libxmlb
 Vcs-Git: https://salsa.debian.org/efi-team/libxmlb.git
@@ -22,8 +22,8 @@ Vcs-Browser: https://salsa.debian.org/efi-team/libxmlb
 Package: gir1.2-xmlb-2.0
 Architecture: any
 Multi-Arch: same
-Depends: ${misc:Depends},
-         ${gir:Depends}
+Depends: ${gir:Depends},
+         ${misc:Depends}
 Section: introspection
 Description: GObject introspection data for libxmlb
  This package provides the introspection data for libxmlb.
@@ -36,7 +36,9 @@ Section: libdevel
 Architecture: any
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${misc:Depends}, ${shlibs:Depends}, gir1.2-xmlb-2.0 (= ${binary:Version})
+Depends: gir1.2-xmlb-2.0 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: development files for libxmlb
  This package provides development libraryes for libxmlb.
  .
@@ -53,7 +55,8 @@ Section: libs
 Architecture: any
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
 Description: Binary XML library
  The libxmlb library takes XML source, and
  converts it to a structured binary representation with a deduplicated string
