@@ -18,7 +18,7 @@ BuildRequires: gobject-introspection-devel
 %if 0%{?rhel} == 7
 BuildRequires: python36-setuptools
 %else
-BuildRequires: python-setuptools
+BuildRequires: python3-setuptools
 %endif
 
 # needed for the self tests
@@ -72,24 +72,25 @@ Executable and data files for installed tests.
 %license LICENSE
 %{_libexecdir}/xb-tool
 %dir %{_libdir}/girepository-1.0
-%{_libdir}/girepository-1.0/*.typelib
+%{_libdir}/girepository-1.0/Xmlb-2.0.typelib
 %{_libdir}/libxmlb.so.2*
 
 %files devel
 %dir %{_datadir}/gir-1.0
-%{_datadir}/gir-1.0/*.gir
+%{_datadir}/gir-1.0/Xmlb-2.0.gir
 %dir %{_datadir}/gtk-doc
 %dir %{_datadir}/gtk-doc/html
 %{_datadir}/gtk-doc/html/libxmlb
-%{_includedir}/libxmlb-1
+%{_includedir}/libxmlb-2
 %{_libdir}/libxmlb.so
 %{_libdir}/pkgconfig/xmlb.pc
 
 %files tests
+%dir %{_libexecdir}/installed-tests/libxmlb
 %{_libexecdir}/installed-tests/libxmlb/xb-self-test
-%{_datadir}/installed-tests/libxmlb/libxmlb.test
-%{_datadir}/installed-tests/libxmlb/test.xml.gz.gz.gz
+%{_libexecdir}/installed-tests/libxmlb/test.xml.gz.gz.gz
 %dir %{_datadir}/installed-tests/libxmlb
+%{_datadir}/installed-tests/libxmlb/libxmlb.test
 
 %changelog
 * #LONGDATE# Richard Hughes <richard@hughsie.com> #VERSION#-0.#BUILD##ALPHATAG#

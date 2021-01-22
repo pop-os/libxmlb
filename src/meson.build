@@ -6,7 +6,7 @@ libxmlb_version_h = configure_file(
 
 install_headers(
   'xmlb.h',
-  subdir : 'libxmlb-1',
+  subdir : 'libxmlb-2',
 )
 
 xb_headers = files(
@@ -30,7 +30,7 @@ xb_headers = files(
 
 install_headers(
   xb_headers,
-  subdir : 'libxmlb-1/libxmlb',
+  subdir : 'libxmlb-2/libxmlb',
 )
 
 subdir('libxmlb')
@@ -45,6 +45,7 @@ libxmlb = library(
     'xb-builder-node.c',
     'xb-builder-source.c',
     'xb-builder-source-ctx.c',
+    'xb-common.c',
     'xb-machine.c',
     'xb-opcode.c',
     'xb-node.c',
@@ -95,7 +96,7 @@ pkgg = import('pkgconfig')
 pkgg.generate(
   libraries : libxmlb,
   requires : [ 'gio-2.0' ],
-  subdirs : 'libxmlb-1',
+  subdirs : 'libxmlb-2',
   version : meson.project_version(),
   name : 'libxmlb',
   filebase : 'xmlb',
@@ -115,6 +116,7 @@ if get_option('introspection')
       'xb-builder-source.h',
       'xb-builder-source-ctx.c',
       'xb-builder-source-ctx.h',
+      'xb-common.c',
       'xb-machine.c',
       'xb-machine.h',
       'xb-node.c',
@@ -137,7 +139,7 @@ if get_option('introspection')
       'xb-string.c',
       'xb-string.h',
     ],
-    nsversion : '1.0',
+    nsversion : '2.0',
     namespace : 'Xmlb',
     symbol_prefix : 'xb',
     identifier_prefix : 'Xb',
@@ -186,6 +188,9 @@ if get_option('introspection')
 endif
 
 if get_option('tests')
+  testdatadirs = environment()
+  testdatadirs.set('G_TEST_SRCDIR', join_paths(meson.source_root(), 'data'))
+  testdatadirs.set('G_TEST_BUILDDIR', meson.current_build_dir())
   e = executable(
     'xb-self-test',
     sources : [
@@ -195,6 +200,7 @@ if get_option('tests')
       'xb-builder-node.c',
       'xb-builder-source.c',
       'xb-builder-source-ctx.c',
+      'xb-common.c',
       'xb-machine.c',
       'xb-node.c',
       'xb-node-query.c',
@@ -210,10 +216,6 @@ if get_option('tests')
     include_directories : [
       configinc,
     ],
-    c_args : [
-      '-DTESTDIR="@0@/../data"'.format(meson.current_source_dir()),
-      '-DINSTALLEDTESTDIR="' + installed_test_datadir + '"',
-    ],
     dependencies : [
       gio,
       libxmlb_dep,
@@ -221,5 +223,5 @@ if get_option('tests')
     install : true,
     install_dir : installed_test_bindir
   )
-  test('xb-self-test', e)
+  test('xb-self-test', e, env : testdatadirs)
 endif
