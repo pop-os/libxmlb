@@ -1,3 +1,14 @@
+libxmlb (0.2.1-1) experimental; urgency=medium
+
+  * New upstream release: 0.2.1
+  * Target experimental, as we are in transition freeze and the
+    previous 0.2.0 release was never uploaded and would trigger
+    a transition.
+  * Add gbp.conf
+  * Drop all patches: Applied upstream
+
+ -- Matthias Klumpp <mak@debian.org>  Fri, 22 Jan 2021 18:06:10 +0100
+
 libxmlb (0.2.0-1) unstable; urgency=medium
 
   * New upstream version.
