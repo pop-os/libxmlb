@@ -40,7 +40,7 @@ Depends: gir1.2-xmlb-2.0 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: development files for libxmlb
- This package provides development libraryes for libxmlb.
+ This package provides development libraries for libxmlb.
  .
  The libxmlb library takes XML source, and
  converts it to a structured binary representation with a deduplicated string
