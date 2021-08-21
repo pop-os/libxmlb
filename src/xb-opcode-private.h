@@ -6,18 +6,26 @@
 
 #pragma once
 
+#include <string.h>
+
 #include "xb-opcode.h"
 
 G_BEGIN_DECLS
+
+/* maximum number of tokens supported for each element -- this is a compromise
+ * between making the _XbOpcode struct too large and search results */
+#define XB_OPCODE_TOKEN_MAX		32
 
 struct _XbOpcode {
 	XbOpcodeKind	 kind;
 	guint32		 val;
 	gpointer	 ptr;
+	guint8		 tokens_len;
+	const gchar	*tokens[XB_OPCODE_TOKEN_MAX+1];
 	GDestroyNotify	 destroy_func;
 };
 
-#define XB_OPCODE_INIT() { 0, 0, NULL, NULL }
+#define XB_OPCODE_INIT() { 0, 0, NULL, 0, {NULL}, NULL }
 
 /**
  * xb_opcode_steal:
@@ -44,19 +52,28 @@ void		 xb_opcode_init			(XbOpcode	*opcode,
 						 GDestroyNotify	 destroy_func);
 void		 xb_opcode_clear		(XbOpcode	*opcode);
 void		 xb_opcode_bind_init		(XbOpcode	*opcode);
-gboolean	 xb_opcode_is_bound		(XbOpcode	*self);
+gboolean	 xb_opcode_is_binding		(XbOpcode	*self);
+G_DEPRECATED_FOR(xb_value_bindings_bind_str)
 void		 xb_opcode_bind_str		(XbOpcode	*self,
 						 gchar		*str,
 						 GDestroyNotify	 destroy_func);
+G_DEPRECATED_FOR(xb_value_bindings_bind_val)
 void		 xb_opcode_bind_val		(XbOpcode	*self,
 						 guint32	 val);
 void		 xb_opcode_set_kind		(XbOpcode	*self,
 						 XbOpcodeKind	 kind);
 void		 xb_opcode_set_val		(XbOpcode	*self,
 						 guint32	 val);
+gboolean	 xb_opcode_append_token		(XbOpcode	*self,
+						 const gchar	*val);
+const gchar	**xb_opcode_get_tokens		(XbOpcode	*self);
 gchar		*xb_opcode_get_sig		(XbOpcode	*self);
 void		 xb_opcode_bool_init		(XbOpcode	*opcode,
 						 gboolean	 val);
+gboolean	 xb_opcode_has_flag		(XbOpcode	*self,
+						 XbOpcodeFlags	 flag);
+void		 xb_opcode_add_flag		(XbOpcode	*self,
+						 XbOpcodeFlags	 flag);
 
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (XbOpcode, xb_opcode_clear)
 

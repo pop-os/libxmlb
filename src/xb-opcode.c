@@ -25,10 +25,7 @@
 const gchar *
 xb_opcode_kind_to_string (XbOpcodeKind kind)
 {
-	if (kind == XB_OPCODE_KIND_FUNCTION)
-		return "FUNC";
-	if (kind == XB_OPCODE_KIND_TEXT)
-		return "TEXT";
+	/* special cases */
 	if (kind == XB_OPCODE_KIND_INTEGER)
 		return "INTE";
 	if (kind == XB_OPCODE_KIND_BOUND_UNSET)
@@ -41,6 +38,12 @@ xb_opcode_kind_to_string (XbOpcodeKind kind)
 		return "TEXI";
 	if (kind == XB_OPCODE_KIND_BOOLEAN)
 		return "BOOL";
+
+	/* bitwise fallbacks */
+	if (kind & XB_OPCODE_FLAG_FUNCTION)
+		return "FUNC";
+	if (kind & XB_OPCODE_FLAG_TEXT)
+		return "TEXT";
 	return NULL;
 }
 
@@ -96,6 +99,32 @@ xb_opcode_get_str_for_display (XbOpcode *self)
 	return self->ptr;
 }
 
+static gchar *
+xb_opcode_to_string_internal (XbOpcode *self)
+{
+	/* special cases */
+	if (self->kind == XB_OPCODE_KIND_INDEXED_TEXT)
+		return g_strdup_printf ("$'%s'", xb_opcode_get_str_for_display (self));
+	if (self->kind == XB_OPCODE_KIND_INTEGER)
+		return g_strdup_printf ("%u", xb_opcode_get_val (self));
+	if (self->kind == XB_OPCODE_KIND_BOUND_INTEGER)
+		return g_strdup ("?");
+	if (self->kind == XB_OPCODE_KIND_BOUND_TEXT)
+		return g_strdup_printf ("?'%s'", xb_opcode_get_str_for_display (self));
+	if (self->kind == XB_OPCODE_KIND_BOUND_INTEGER)
+		return g_strdup_printf ("?%u", xb_opcode_get_val (self));
+	if (self->kind == XB_OPCODE_KIND_BOOLEAN)
+		return g_strdup (xb_opcode_get_val (self) ? "True" : "False");
+
+	/* bitwise fallbacks */
+	if (self->kind & XB_OPCODE_FLAG_FUNCTION)
+		return g_strdup_printf ("%s()", xb_opcode_get_str_for_display (self));
+	if (self->kind & XB_OPCODE_FLAG_TEXT)
+		return g_strdup_printf ("'%s'", xb_opcode_get_str_for_display (self));
+	g_critical ("no to_string for kind 0x%x", self->kind);
+	return NULL;
+}
+
 /**
  * xb_opcode_to_string:
  * @self: a #XbOpcode
@@ -109,24 +138,15 @@ xb_opcode_get_str_for_display (XbOpcode *self)
 gchar *
 xb_opcode_to_string (XbOpcode *self)
 {
-	if (self->kind == XB_OPCODE_KIND_FUNCTION)
-		return g_strdup_printf ("%s()", xb_opcode_get_str_for_display (self));
-	if (self->kind == XB_OPCODE_KIND_TEXT)
-		return g_strdup_printf ("'%s'", xb_opcode_get_str_for_display (self));
-	if (self->kind == XB_OPCODE_KIND_INDEXED_TEXT)
-		return g_strdup_printf ("$'%s'", xb_opcode_get_str_for_display (self));
-	if (self->kind == XB_OPCODE_KIND_INTEGER)
-		return g_strdup_printf ("%u", xb_opcode_get_val (self));
-	if (self->kind == XB_OPCODE_KIND_BOUND_INTEGER)
-		return g_strdup ("?");
-	if (self->kind == XB_OPCODE_KIND_BOUND_TEXT)
-		return g_strdup_printf ("?'%s'", xb_opcode_get_str_for_display (self));
-	if (self->kind == XB_OPCODE_KIND_BOUND_INTEGER)
-		return g_strdup_printf ("?%u", xb_opcode_get_val (self));
-	if (self->kind == XB_OPCODE_KIND_BOOLEAN)
-		return g_strdup (xb_opcode_get_val (self) ? "True" : "False");
-	g_critical ("no to_string for kind %u", self->kind);
-	return NULL;
+	g_autofree gchar *tmp = xb_opcode_to_string_internal (self);
+	if (self->kind & XB_OPCODE_FLAG_TOKENIZED) {
+		g_autofree gchar *tokens = NULL;
+		/* Ensure the array is NULL-terminated */
+		self->tokens[self->tokens_len] = NULL;
+		tokens = g_strjoinv (",", (gchar **) self->tokens);
+		return g_strdup_printf ("%s[%s]", tmp, tokens);
+	}
+	return g_steal_pointer (&tmp);
 }
 
 /**
@@ -142,7 +162,39 @@ xb_opcode_to_string (XbOpcode *self)
 XbOpcodeKind
 xb_opcode_get_kind (XbOpcode *self)
 {
-	return self->kind;
+	return self->kind & ~XB_OPCODE_FLAG_TOKENIZED;
+}
+
+/**
+ * xb_opcode_has_flag:
+ * @self: a #XbOpcode
+ * @flag: a #XbOpcodeFlags, e.g. #XB_OPCODE_FLAG_TOKENIZED
+ *
+ * Finds out if an opcode has a flag set.
+ *
+ * Returns: %TRUE if the flag is set
+ *
+ * Since: 0.3.1
+ **/
+gboolean
+xb_opcode_has_flag (XbOpcode *self, XbOpcodeFlags flag)
+{
+	return (self->kind & flag) > 0;
+}
+
+/**
+ * xb_opcode_add_flag:
+ * @self: a #XbOpcode
+ * @flag: a #XbOpcodeFlags, e.g. #XB_OPCODE_FLAG_TOKENIZED
+ *
+ * Adds a flag to the opcode.
+ *
+ * Since: 0.3.1
+ **/
+void
+xb_opcode_add_flag (XbOpcode *self, XbOpcodeFlags flag)
+{
+	self->kind |= flag;
 }
 
 /**
@@ -176,16 +228,14 @@ xb_opcode_cmp_val (XbOpcode *self)
 inline gboolean
 xb_opcode_cmp_str (XbOpcode *self)
 {
-	return self->kind == XB_OPCODE_KIND_TEXT ||
-		self->kind == XB_OPCODE_KIND_BOUND_TEXT ||
-		self->kind == XB_OPCODE_KIND_INDEXED_TEXT;
+	return xb_opcode_has_flag (self, XB_OPCODE_FLAG_TEXT);
 }
 
 /* private */
 gboolean
-xb_opcode_is_bound (XbOpcode *self)
+xb_opcode_is_binding (XbOpcode *self)
 {
-	return (self->kind & XB_OPCODE_FLAG_BOUND) > 0;
+	return xb_opcode_has_flag (self, XB_OPCODE_FLAG_BOUND);
 }
 
 /**
@@ -219,6 +269,22 @@ const gchar *
 xb_opcode_get_str (XbOpcode *self)
 {
 	return self->ptr;
+}
+
+/**
+ * xb_opcode_get_tokens:
+ * @self: a #XbOpcode
+ *
+ * Gets the tokenized string stored on the opcode.
+ *
+ * Returns: a #GStrv, which is always %NULL terminated
+ *
+ * Since: 0.3.1
+ **/
+const gchar **
+xb_opcode_get_tokens (XbOpcode *self)
+{
+	return self->tokens;
 }
 
 /**
@@ -277,6 +343,7 @@ xb_opcode_init (XbOpcode       *opcode,
 	opcode->kind = kind;
 	opcode->ptr = (gpointer) str;
 	opcode->val = val;
+	opcode->tokens_len = 0;
 	opcode->destroy_func = destroy_func;
 }
 
@@ -334,7 +401,8 @@ xb_opcode_func_init (XbOpcode *opcode, guint32 func)
  * @opcode: a stack allocated #XbOpcode to initialise
  *
  * Initialises a stack allocated #XbOpcode to contain a bind variable. A value
- * needs to be assigned to this opcode at runtime using xb_query_bind_str().
+ * needs to be assigned to this opcode at runtime using
+ * xb_value_bindings_bind_str() or xb_value_bindings_bind_val().
  *
  * Since: 0.2.0
  **/
@@ -374,6 +442,19 @@ void
 xb_opcode_set_val (XbOpcode *self, guint32 val)
 {
 	self->val = val;
+}
+
+/* private */
+gboolean
+xb_opcode_append_token (XbOpcode *self, const gchar *val)
+{
+	g_return_val_if_fail (val != NULL, FALSE);
+	g_return_val_if_fail (val[0] != '\0', FALSE);
+	if (self->tokens_len >= XB_OPCODE_TOKEN_MAX)
+		return FALSE;
+	self->tokens[self->tokens_len++] = val;
+	self->kind |= XB_OPCODE_FLAG_TOKENIZED;
+	return TRUE;
 }
 
 /* private */

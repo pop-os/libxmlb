@@ -8,8 +8,6 @@
 
 #include <glib-object.h>
 
-#include "xb-silo.h"
-
 G_BEGIN_DECLS
 
 #define XB_TYPE_QUERY (xb_query_get_type ())
@@ -35,7 +33,7 @@ struct _XbQueryClass {
  * @XB_QUERY_FLAG_REVERSE:		Reverse the results order
  * @XB_QUERY_FLAG_FORCE_NODE_CACHE:	Always cache the #XbNode objects
  *
- * The flags used fo query.
+ * The flags used for queries.
  **/
 typedef enum {
 	XB_QUERY_FLAG_NONE		= 0,			/* Since: 0.1.6 */
@@ -47,6 +45,8 @@ typedef enum {
 	XB_QUERY_FLAG_LAST
 } XbQueryFlags;
 
+#include "xb-silo.h"
+
 XbQuery		*xb_query_new			(XbSilo		*silo,
 						 const gchar	*xpath,
 						 GError		**error);
@@ -55,16 +55,25 @@ XbQuery		*xb_query_new_full		(XbSilo		*silo,
 						 XbQueryFlags	 flags,
 						 GError		**error);
 const gchar	*xb_query_get_xpath		(XbQuery	*self);
+
+G_DEPRECATED_FOR(xb_query_context_get_limit)
 guint		 xb_query_get_limit		(XbQuery	*self);
+G_DEPRECATED_FOR(xb_query_context_set_limit)
 void		 xb_query_set_limit		(XbQuery	*self,
 						 guint		 limit);
+
+G_DEPRECATED_FOR(xb_query_context_get_flags)
 XbQueryFlags	 xb_query_get_flags		(XbQuery	*self);
+G_DEPRECATED_FOR(xb_query_context_set_flags)
 void		 xb_query_set_flags		(XbQuery	*self,
 						 XbQueryFlags	 flags);
+
+G_DEPRECATED_FOR(xb_value_bindings_bind_str)
 gboolean	 xb_query_bind_str		(XbQuery	*self,
 						 guint		 idx,
 						 const gchar	*str,
 						 GError		**error);
+G_DEPRECATED_FOR(xb_value_bindings_bind_val)
 gboolean	 xb_query_bind_val		(XbQuery	*self,
 						 guint		 idx,
 						 guint32	 val,

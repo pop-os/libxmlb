@@ -13,6 +13,7 @@
 
 #include "xb-silo-private.h"
 #include "xb-string-private.h"
+#include "xb-opcode-private.h"
 #include "xb-builder.h"
 #include "xb-builder-fixup-private.h"
 #include "xb-builder-source-private.h"
@@ -170,14 +171,9 @@ xb_builder_compile_text_cb (GMarkupParseContext *context,
 		xb_builder_node_set_tail (bc, text, text_len);
 		return;
 	}
-	if (!xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_HAS_TAIL)) {
-		xb_builder_node_set_tail (bn, text, text_len);
-		return;
-	}
-	g_set_error (error,
-		     G_IO_ERROR,
-		     G_IO_ERROR_INVALID_DATA,
-		     "Mismatched XML; cannot store %s", text);
+
+	/* always set a tail, even if already set */
+	xb_builder_node_set_tail (bn, text, text_len);
 }
 
 /**
@@ -369,6 +365,28 @@ xb_builder_strtab_text_cb (XbBuilderNode *bn, gpointer user_data)
 }
 
 static gboolean
+xb_builder_strtab_tokens_cb (XbBuilderNode *bn, gpointer user_data)
+{
+	XbBuilderCompileHelper *helper = (XbBuilderCompileHelper *) user_data;
+	GPtrArray *tokens = xb_builder_node_get_tokens (bn);
+
+	/* root node */
+	if (xb_builder_node_get_element (bn) == NULL)
+		return FALSE;
+	if (xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_IGNORE))
+		return FALSE;
+	if (tokens == NULL)
+		return FALSE;
+	for (guint i = 0; i < tokens->len; i++) {
+		const gchar *tmp = g_ptr_array_index (tokens, i);
+		if (tmp == NULL)
+			continue;
+		xb_builder_node_add_token_idx (bn, xb_builder_compile_add_to_strtab (helper, tmp));
+	}
+	return FALSE;
+}
+
+static gboolean
 xb_builder_xml_lang_prio_cb (XbBuilderNode *bn, gpointer user_data)
 {
 	GPtrArray *nodes_to_destroy = (GPtrArray *) user_data;
@@ -440,8 +458,8 @@ static void
 xb_builder_nodetab_write_sentinel (XbBuilderNodetabHelper *helper)
 {
 	XbSiloNode sn = {
-		.is_node	= FALSE,
-		.nr_attrs	= 0,
+		.flags		= XB_SILO_NODE_FLAG_NONE,
+		.attr_count	= 0,
 	};
 //	g_debug ("SENT @%u", (guint) helper->buf->len);
 	XB_SILO_APPENDBUF (helper->buf, &sn, xb_silo_node_get_size (&sn));
@@ -451,15 +469,21 @@ static void
 xb_builder_nodetab_write_node (XbBuilderNodetabHelper *helper, XbBuilderNode *bn)
 {
 	GPtrArray *attrs = xb_builder_node_get_attrs (bn);
+	GArray *token_idxs = xb_builder_node_get_token_idxs (bn);
 	XbSiloNode sn = {
-		.is_node	= TRUE,
-		.nr_attrs	= (attrs != NULL) ? attrs->len : 0,
+		.flags		= XB_SILO_NODE_FLAG_IS_ELEMENT,
+		.attr_count	= (attrs != NULL) ? attrs->len : 0,
 		.element_name	= xb_builder_node_get_element_idx (bn),
 		.next		= 0x0,
 		.parent		= 0x0,
 		.text		= xb_builder_node_get_text_idx (bn),
 		.tail		= xb_builder_node_get_tail_idx (bn),
+		.token_count	= 0,
 	};
+
+	/* add tokens */
+	if (xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_TOKENIZE_TEXT))
+		sn.flags |= XB_SILO_NODE_FLAG_IS_TOKENIZED;
 
 	/* if the node had no children and the text is just whitespace then
 	 * remove it even in literal mode */
@@ -475,17 +499,27 @@ xb_builder_nodetab_write_node (XbBuilderNodetabHelper *helper, XbBuilderNode *bn
 
 //	g_debug ("NODE @%u (%s)", (guint) helper->buf->len, xb_builder_node_get_element (bn));
 
+	/* there is no point adding more tokens than we can match */
+	if (token_idxs != NULL)
+		sn.token_count = MIN (token_idxs->len, XB_OPCODE_TOKEN_MAX);
+
 	/* add to the buf */
 	XB_SILO_APPENDBUF (helper->buf, &sn, sizeof(XbSiloNode));
 
 	/* add to the buf */
 	for (guint i = 0; attrs != NULL && i < attrs->len; i++) {
 		XbBuilderNodeAttr *ba = g_ptr_array_index (attrs, i);
-		XbSiloAttr attr = {
+		XbSiloNodeAttr attr = {
 			.attr_name	= ba->name_idx,
 			.attr_value	= ba->value_idx,
 		};
 		XB_SILO_APPENDBUF (helper->buf, &attr, sizeof(attr));
+	}
+
+	/* add tokens */
+	for (guint i = 0; i < sn.token_count; i++) {
+		guint32 idx = g_array_index (token_idxs, guint32, i);
+		XB_SILO_APPENDBUF (helper->buf, &idx, sizeof(idx));
 	}
 }
 
@@ -754,7 +788,8 @@ xb_builder_compile (XbBuilder *self, XbBuilderCompileFlags flags, GCancellable *
 			root = g_object_ref (helper->root);
 		}
 
-		g_debug ("compiling %s…", source_guid);
+		if (priv->profile_flags & XB_SILO_PROFILE_FLAG_DEBUG)
+			g_debug ("compiling %s…", source_guid);
 		if (!xb_builder_compile_source (helper, source, root,
 						cancellable, &error_local)) {
 			if (flags & XB_BUILDER_COMPILE_FLAG_IGNORE_INVALID) {
@@ -805,7 +840,7 @@ xb_builder_compile (XbBuilder *self, XbBuilderCompileFlags flags, GCancellable *
 	buf = g_string_sized_new (nodetabsz);
 	xb_silo_add_profile (priv->silo, timer, "get size nodetab");
 
-	/* add element names, attr name, attr value, then text to the strtab */
+	/* add everything to the strtab */
 	xb_builder_node_traverse (helper->root, G_PRE_ORDER, G_TRAVERSE_ALL, -1,
 				  xb_builder_strtab_element_names_cb, helper);
 	hdr.strtab_ntags = g_hash_table_size (helper->strtab_hash);
@@ -819,6 +854,9 @@ xb_builder_compile (XbBuilder *self, XbBuilderCompileFlags flags, GCancellable *
 	xb_builder_node_traverse (helper->root, G_PRE_ORDER, G_TRAVERSE_ALL, -1,
 				  xb_builder_strtab_text_cb, helper);
 	xb_silo_add_profile (priv->silo, timer, "adding strtab text");
+	xb_builder_node_traverse (helper->root, G_PRE_ORDER, G_TRAVERSE_ALL, -1,
+				  xb_builder_strtab_tokens_cb, helper);
+	xb_silo_add_profile (priv->silo, timer, "adding strtab tokens");
 
 	/* add the initial header */
 	hdr.strtab = nodetabsz;

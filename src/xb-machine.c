@@ -27,6 +27,7 @@ typedef struct {
 	GPtrArray		*operators;	/* of XbMachineOperator */
 	GPtrArray		*text_handlers;	/* of XbMachineTextHandlerItem */
 	GHashTable		*opcode_fixup;	/* of str[XbMachineOpcodeFixupItem] */
+	GHashTable		*opcode_tokens;	/* of utf8 */
 	guint			 stack_size;
 } XbMachinePrivate;
 
@@ -396,7 +397,7 @@ xb_machine_parse_add_text (XbMachine *self,
 				return FALSE;
 			xb_opcode_init (opcode,
 					XB_OPCODE_KIND_INDEXED_TEXT,
-					tmp,
+					g_steal_pointer (&tmp),
 					XB_SILO_UNSET,
 					g_free);
 			return TRUE;
@@ -635,11 +636,11 @@ static gboolean
 xb_machine_opcodes_optimize (XbMachine *self, XbStack *opcodes, GError **error)
 {
 	XbMachinePrivate *priv = GET_PRIVATE (self);
-	g_autoptr(XbStack) results = xb_stack_new (xb_stack_get_size (opcodes));
+	g_autoptr(XbStack) results = xb_stack_new_inline (xb_stack_get_size (opcodes));
 	g_auto(XbOpcode) op = XB_OPCODE_INIT ();
 
 	/* debug */
-	if (priv->debug_flags & XB_MACHINE_DEBUG_FLAG_SHOW_STACK) {
+	if (priv->debug_flags & XB_MACHINE_DEBUG_FLAG_SHOW_OPTIMIZER) {
 		g_autofree gchar *str = xb_stack_to_string (opcodes);
 		g_debug ("before optimizing: %s", str);
 	}
@@ -664,7 +665,7 @@ xb_machine_opcodes_optimize (XbMachine *self, XbStack *opcodes, GError **error)
 	}
 
 	/* debug */
-	if (priv->debug_flags & XB_MACHINE_DEBUG_FLAG_SHOW_STACK) {
+	if (priv->debug_flags & XB_MACHINE_DEBUG_FLAG_SHOW_OPTIMIZER) {
 		g_autofree gchar *str = xb_stack_to_string (opcodes);
 		g_debug ("after optimizing: %s", str);
 	}
@@ -798,6 +799,8 @@ xb_machine_parse_full (XbMachine *self,
 
 	/* do any fixups */
 	opcodes_sig = xb_machine_get_opcodes_sig (self, opcodes);
+	if (priv->debug_flags & XB_MACHINE_DEBUG_FLAG_SHOW_OPTIMIZER)
+		g_debug ("opcodes_sig=%s", opcodes_sig);
 	item = g_hash_table_lookup (priv->opcode_fixup, opcodes_sig);
 	if (item != NULL) {
 		if (!item->fixup_cb (self, opcodes, item->user_data, error))
@@ -900,7 +903,7 @@ xb_machine_run_func (XbMachine *self,
  * @self: a #XbMachine
  * @opcodes: a #XbStack of opcodes
  * @result: (out): return status after running @opcodes
- * @exec_data: per-run user data that is passed to all the XbMachineMethodFunc functions
+ * @exec_data: per-run user data that is passed to all the #XbMachineMethodFunc functions
  * @error: a #GError, or %NULL
  *
  * Runs a set of opcodes on the virtual machine.
@@ -911,6 +914,7 @@ xb_machine_run_func (XbMachine *self,
  * Returns: a new #XbOpcode, or %NULL
  *
  * Since: 0.1.1
+ * Deprecated: 0.3.0: Use xb_machine_run_with_bindings() instead.
  **/
 gboolean
 xb_machine_run (XbMachine *self,
@@ -919,10 +923,43 @@ xb_machine_run (XbMachine *self,
 		gpointer exec_data,
 		GError **error)
 {
+	return xb_machine_run_with_bindings (self, opcodes, NULL, result, exec_data, error);
+}
+
+/**
+ * xb_machine_run_with_bindings:
+ * @self: a #XbMachine
+ * @opcodes: a #XbStack of opcodes
+ * @bindings: (nullable) (transfer none): values bound to opcodes of type
+ *     %XB_OPCODE_KIND_BOUND_INTEGER or %XB_OPCODE_KIND_BOUND_TEXT, or %NULL if
+ *     the query doesn’t need any bound values
+ * @result: (out): return status after running @opcodes
+ * @exec_data: per-run user data that is passed to all the #XbMachineMethodFunc functions
+ * @error: a #GError, or %NULL
+ *
+ * Runs a set of opcodes on the virtual machine, using the bound values given in
+ * @bindings to substitute for bound opcodes.
+ *
+ * It is safe to call this function from a different thread to the one that
+ * created the #XbMachine.
+ *
+ * Returns: a new #XbOpcode, or %NULL
+ *
+ * Since: 0.3.0
+ **/
+gboolean
+xb_machine_run_with_bindings (XbMachine        *self,
+			      XbStack          *opcodes,
+			      XbValueBindings  *bindings,
+			      gboolean         *result,
+			      gpointer          exec_data,
+			      GError          **error)
+{
 	XbMachinePrivate *priv = GET_PRIVATE (self);
 	g_auto(XbOpcode) opcode_success = XB_OPCODE_INIT ();
 	g_autoptr(XbStack) stack = NULL;
 	guint opcodes_stack_size = xb_stack_get_size (opcodes);
+	guint bound_opcode_idx = 0;
 
 	g_return_val_if_fail (XB_IS_MACHINE (self), FALSE);
 	g_return_val_if_fail (opcodes != NULL, FALSE);
@@ -930,10 +967,42 @@ xb_machine_run (XbMachine *self,
 	g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
 	/* process each opcode */
-	stack = xb_stack_new (priv->stack_size);
+	stack = xb_stack_new_inline (priv->stack_size);
 	for (guint i = 0; i < opcodes_stack_size; i++) {
 		XbOpcode *opcode = xb_stack_peek (opcodes, i);
 		XbOpcodeKind kind = xb_opcode_get_kind (opcode);
+
+		/* replace post-0.3.0-style bound opcodes with their bound values */
+		if (bindings != NULL &&
+		    (kind == XB_OPCODE_KIND_BOUND_TEXT ||
+		     kind == XB_OPCODE_KIND_BOUND_INTEGER)) {
+			XbOpcode *machine_opcode;
+			if (!xb_machine_stack_push (self,
+						    stack,
+						    &machine_opcode,
+						    error))
+				return FALSE;
+			if (!xb_value_bindings_lookup_opcode (bindings, bound_opcode_idx++, machine_opcode)) {
+				g_autofree gchar *tmp1 = xb_stack_to_string (stack);
+				g_autofree gchar *tmp2 = xb_stack_to_string (opcodes);
+				g_set_error (error,
+					     G_IO_ERROR,
+					     G_IO_ERROR_INVALID_DATA,
+					     "opcode was not bound at runtime, stack:%s, opcodes:%s",
+					     tmp1, tmp2);
+				return FALSE;
+			}
+			continue;
+		} else if (kind == XB_OPCODE_KIND_BOUND_UNSET) {
+			g_autofree gchar *tmp1 = xb_stack_to_string (stack);
+			g_autofree gchar *tmp2 = xb_stack_to_string (opcodes);
+			g_set_error (error,
+				     G_IO_ERROR,
+				     G_IO_ERROR_INVALID_DATA,
+				     "opcode was not bound at runtime, stack:%s, opcodes:%s",
+				     tmp1, tmp2);
+			return FALSE;
+		}
 
 		/* process the stack */
 		if (kind == XB_OPCODE_KIND_FUNCTION) {
@@ -953,8 +1022,9 @@ xb_machine_run (XbMachine *self,
 		    kind == XB_OPCODE_KIND_BOOLEAN ||
 		    kind == XB_OPCODE_KIND_INTEGER ||
 		    kind == XB_OPCODE_KIND_INDEXED_TEXT ||
-		    kind == XB_OPCODE_KIND_BOUND_TEXT ||
-		    kind == XB_OPCODE_KIND_BOUND_INTEGER) {
+		    (bindings == NULL &&
+		     (kind == XB_OPCODE_KIND_BOUND_TEXT ||
+		      kind == XB_OPCODE_KIND_BOUND_INTEGER))) {
 			XbOpcode *machine_opcode;
 			if (!xb_machine_stack_push (self,
 						    stack,
@@ -964,18 +1034,6 @@ xb_machine_run (XbMachine *self,
 			*machine_opcode = *opcode;
 			machine_opcode->destroy_func = NULL;
 			continue;
-		}
-
-		/* unbound */
-		if (kind == XB_OPCODE_KIND_BOUND_UNSET) {
-			g_autofree gchar *tmp1 = xb_stack_to_string (stack);
-			g_autofree gchar *tmp2 = xb_stack_to_string (opcodes);
-			g_set_error (error,
-				     G_IO_ERROR,
-				     G_IO_ERROR_INVALID_DATA,
-				     "opcode was not bound at runtime, stack:%s, opcodes:%s",
-				     tmp1, tmp2);
-			return FALSE;
 		}
 
 		/* invalid */
@@ -1277,6 +1335,49 @@ xb_machine_get_stack_size (XbMachine *self)
 	XbMachinePrivate *priv = GET_PRIVATE (self);
 	g_return_val_if_fail (XB_IS_MACHINE (self), 0);
 	return priv->stack_size;
+}
+
+static const gchar *
+xb_machine_intern_token (XbMachine *self, const gchar *str)
+{
+	XbMachinePrivate *priv = GET_PRIVATE (self);
+	const gchar *tmp;
+	gchar *newstr;
+
+	/* existing value */
+	tmp = g_hash_table_lookup (priv->opcode_tokens, str);
+	if (tmp != NULL)
+		return tmp;
+
+	/* add as both key and value */
+	newstr = g_strdup (str);
+	g_hash_table_add (priv->opcode_tokens, newstr);
+	return newstr;
+}
+
+/* private */
+void
+xb_machine_opcode_tokenize (XbMachine *self, XbOpcode *op)
+{
+	const gchar *str;
+	g_auto(GStrv) tokens = NULL;
+	g_auto(GStrv) ascii_tokens = NULL;
+
+	/* use the fast token path even if there are no valid tokens */
+	xb_opcode_add_flag (op, XB_OPCODE_FLAG_TOKENIZED);
+
+	str = xb_opcode_get_str (op);
+	tokens = g_str_tokenize_and_fold (str, NULL, &ascii_tokens);
+	for (guint i = 0; tokens[i] != NULL; i++) {
+		if (!xb_string_token_valid (tokens[i]))
+			continue;
+		xb_opcode_append_token (op, xb_machine_intern_token (self, tokens[i]));
+	}
+	for (guint i = 0; ascii_tokens[i] != NULL; i++) {
+		if (!xb_string_token_valid (ascii_tokens[i]))
+			continue;
+		xb_opcode_append_token (op, xb_machine_intern_token (self, ascii_tokens[i]));
+	}
 }
 
 typedef gboolean (*OpcodeCheckFunc) (XbOpcode *op);
@@ -1741,7 +1842,7 @@ xb_machine_func_lower_cb (XbMachine *self,
 
 	/* TEXT */
 	return xb_machine_stack_push_text_steal (self, stack,
-						 g_ascii_strdown (xb_opcode_get_str (&op), -1),
+						 g_utf8_strdown (xb_opcode_get_str (&op), -1),
 						 error);
 }
 
@@ -1762,7 +1863,7 @@ xb_machine_func_upper_cb (XbMachine *self,
 
 	/* TEXT */
 	return xb_machine_stack_push_text_steal (self, stack,
-						 g_ascii_strup (xb_opcode_get_str (&op), -1),
+						 g_utf8_strup (xb_opcode_get_str (&op), -1),
 						 error);
 }
 
@@ -2057,6 +2158,7 @@ xb_machine_init (XbMachine *self)
 	priv->text_handlers = g_ptr_array_new_with_free_func ((GDestroyNotify) xb_machine_text_handler_free);
 	priv->opcode_fixup = g_hash_table_new_full (g_str_hash, g_str_equal,
 						     g_free, (GDestroyNotify) xb_machine_opcode_fixup_free);
+	priv->opcode_tokens = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
 	/* built-in functions */
 	xb_machine_add_method (self, "and", 2, xb_machine_func_and_cb, NULL, NULL);
@@ -2100,6 +2202,7 @@ xb_machine_finalize (GObject *obj)
 	g_ptr_array_unref (priv->operators);
 	g_ptr_array_unref (priv->text_handlers);
 	g_hash_table_unref (priv->opcode_fixup);
+	g_hash_table_unref (priv->opcode_tokens);
 	G_OBJECT_CLASS (xb_machine_parent_class)->finalize (obj);
 }
 

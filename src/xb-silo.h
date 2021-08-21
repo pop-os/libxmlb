@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <glib.h>
+#include <gio/gio.h>
 #include <glib-object.h>
 
 #include "xb-node.h"
@@ -49,6 +51,7 @@ typedef enum {
  * @XB_SILO_PROFILE_FLAG_DEBUG:			Output profiling as debug
  * @XB_SILO_PROFILE_FLAG_APPEND:		Save profiling in an appended string
  * @XB_SILO_PROFILE_FLAG_XPATH:			Save XPATH queries
+ * @XB_SILO_PROFILE_FLAG_OPTIMIZER:		Output the machine optimizer as debug
  *
  * The flags used when profiling a silo.
  **/
@@ -57,6 +60,7 @@ typedef enum {
 	XB_SILO_PROFILE_FLAG_DEBUG	= 1 << 0,		/* Since: 0.1.1 */
 	XB_SILO_PROFILE_FLAG_APPEND	= 1 << 1,		/* Since: 0.1.1 */
 	XB_SILO_PROFILE_FLAG_XPATH	= 1 << 2,		/* Since: 0.1.1 */
+	XB_SILO_PROFILE_FLAG_OPTIMIZER	= 1 << 3,		/* Since: 0.3.1 */
 	/*< private >*/
 	XB_SILO_PROFILE_FLAG_LAST
 } XbSiloProfileFlags;
@@ -96,5 +100,10 @@ const gchar	*xb_silo_get_profile_string		(XbSilo		*self);
 gboolean	 xb_silo_get_enable_node_cache		(XbSilo		*self);
 void		 xb_silo_set_enable_node_cache		(XbSilo		*self,
 							 gboolean	 enable_node_cache);
+
+#include "xb-query.h"
+
+XbQuery		*xb_silo_lookup_query			(XbSilo		*self,
+							 const gchar	*xpath);
 
 G_END_DECLS

@@ -12,6 +12,7 @@
 #include <glib-unix.h>
 #endif
 #include <gio/gio.h>
+#include <locale.h>
 
 #include "xb-builder.h"
 #include "xb-silo-export.h"
@@ -25,6 +26,7 @@ typedef struct {
 	gboolean		 force;
 	gboolean		 wait;
 	gboolean		 profile;
+	gchar			**tokenize;
 } XbToolPrivate;
 
 static void
@@ -36,6 +38,7 @@ xb_tool_private_free (XbToolPrivate *priv)
 		g_ptr_array_unref (priv->cmd_array);
 	g_main_loop_unref (priv->loop);
 	g_object_unref (priv->cancellable);
+	g_strfreev (priv->tokenize);
 	g_free (priv);
 }
 
@@ -252,7 +255,9 @@ xb_tool_query (XbToolPrivate *priv, gchar **values, GError **error)
 	guint limit = 0;
 	g_autoptr(GFile) file = NULL;
 	g_autoptr(GPtrArray) results = NULL;
+	g_autoptr(XbQuery) query = NULL;
 	g_autoptr(XbSilo) silo = xb_silo_new ();
+	g_auto(XbQueryContext) context = XB_QUERY_CONTEXT_INIT ();
 
 	/* check args */
 	if (g_strv_length (values) < 2) {
@@ -269,6 +274,7 @@ xb_tool_query (XbToolPrivate *priv, gchar **values, GError **error)
 	file = g_file_new_for_path (values[0]);
 	if (priv->profile) {
 		xb_silo_set_profile_flags (silo,
+					   XB_SILO_PROFILE_FLAG_OPTIMIZER |
 					   XB_SILO_PROFILE_FLAG_XPATH |
 					   XB_SILO_PROFILE_FLAG_APPEND);
 	}
@@ -278,9 +284,13 @@ xb_tool_query (XbToolPrivate *priv, gchar **values, GError **error)
 	/* parse optional limit */
 	if (g_strv_length (values) == 3)
 		limit = g_ascii_strtoull (values[2], NULL, 10);
+	xb_query_context_set_limit (&context, limit);
 
 	/* query */
-	results = xb_silo_query (silo, values[1], limit, error);
+	query = xb_query_new_full (silo, values[1], XB_QUERY_FLAG_OPTIMIZE, error);
+	if (query == NULL)
+		return FALSE;
+	results = xb_silo_query_with_context (silo, query, &context, error);
 	if (results == NULL)
 		return FALSE;
 	for (guint i = 0; i < results->len; i++) {
@@ -365,6 +375,22 @@ xb_tool_silo_invalidated_cb (XbSilo *silo, GParamSpec *pspec, gpointer user_data
 }
 
 static gboolean
+xb_tool_builder_tokenize_cb (XbBuilderFixup *self,
+			     XbBuilderNode *bn,
+			     gpointer user_data,
+			     GError **error)
+{
+	XbToolPrivate *priv = (XbToolPrivate *) user_data;
+	for (guint i = 0; priv->tokenize != NULL && priv->tokenize[i] != NULL; i++) {
+		if (g_strcmp0 (xb_builder_node_get_element (bn), priv->tokenize[i]) == 0) {
+			xb_builder_node_tokenize_text (bn);
+			break;
+		}
+	}
+	return TRUE;
+}
+
+static gboolean
 xb_tool_compile (XbToolPrivate *priv, gchar **values, GError **error)
 {
 	const gchar *const *locales = g_get_language_names ();
@@ -390,6 +416,13 @@ xb_tool_compile (XbToolPrivate *priv, gchar **values, GError **error)
 	for (guint i = 1; values[i] != NULL; i++) {
 		g_autoptr(GFile) file = g_file_new_for_path (values[i]);
 		g_autoptr(XbBuilderSource) source = xb_builder_source_new ();
+		if (priv->tokenize != NULL) {
+			g_autoptr(XbBuilderFixup) fixup = NULL;
+			fixup = xb_builder_fixup_new ("TextTokenize",
+						      xb_tool_builder_tokenize_cb,
+						      priv, NULL);
+			xb_builder_source_add_fixup (source, fixup);
+		}
 		if (!xb_builder_source_load_file (source, file,
 						  XB_BUILDER_SOURCE_FLAG_WATCH_FILE |
 						  XB_BUILDER_SOURCE_FLAG_LITERAL_TEXT,
@@ -404,7 +437,7 @@ xb_tool_compile (XbToolPrivate *priv, gchar **values, GError **error)
 	silo = xb_builder_ensure (builder, file_dst,
 				  XB_BUILDER_COMPILE_FLAG_WATCH_BLOB |
 				  XB_BUILDER_COMPILE_FLAG_IGNORE_INVALID |
-				  XB_BUILDER_COMPILE_FLAG_SINGLE_LANG,
+				  XB_BUILDER_COMPILE_FLAG_NATIVE_LANGS,
 				  NULL, error);
 	if (silo == NULL)
 		return FALSE;
@@ -455,8 +488,12 @@ main (int argc, char *argv[])
 			"Return only when the silo is no longer valid", NULL },
 		{ "profile", 'p', 0, G_OPTION_ARG_NONE, &priv->profile,
 			"Show profiling information", NULL },
+		{ "tokenize", 't', 0, G_OPTION_ARG_STRING_ARRAY, &priv->tokenize,
+			"Tokenize elements for faster search, e.g. name,summary", NULL },
 		{ NULL}
 	};
+
+	setlocale (LC_ALL, "");
 
 	/* do not let GIO start a session bus */
 	g_setenv ("GIO_USE_VFS", "local", 1);

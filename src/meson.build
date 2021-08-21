@@ -21,11 +21,13 @@ xb_headers = files(
   'xb-node-silo.h',
   'xb-opcode.h',
   'xb-query.h',
+  'xb-query-context.h',
   'xb-silo-export.h',
   'xb-silo.h',
   'xb-silo-query.h',
   'xb-stack.h',
   'xb-string.h',
+  'xb-value-bindings.h',
 ) + [libxmlb_version_h]
 
 install_headers(
@@ -51,11 +53,14 @@ libxmlb = library(
     'xb-node.c',
     'xb-node-query.c',
     'xb-query.c',
+    'xb-query-context.c',
     'xb-silo.c',
     'xb-silo-export.c',
+    'xb-silo-node.c',
     'xb-silo-query.c',
     'xb-stack.c',
     'xb-string.c',
+    'xb-value-bindings.c',
   ],
   soversion : lt_current,
   version : lt_version,
@@ -93,8 +98,7 @@ xb_tool = executable(
 )
 
 pkgg = import('pkgconfig')
-pkgg.generate(
-  libraries : libxmlb,
+pkgg.generate(libxmlb,
   requires : [ 'gio-2.0' ],
   subdirs : 'libxmlb-2',
   version : meson.project_version(),
@@ -128,6 +132,8 @@ if get_option('introspection')
       'xb-opcode.h',
       'xb-query.c',
       'xb-query.h',
+      'xb-query-context.c',
+      'xb-query-context.h',
       'xb-silo.c',
       'xb-silo.h',
       'xb-silo-export.c',
@@ -138,12 +144,14 @@ if get_option('introspection')
       'xb-stack.h',
       'xb-string.c',
       'xb-string.h',
+      'xb-value-bindings.c',
+      'xb-value-bindings.h',
     ],
     nsversion : '2.0',
     namespace : 'Xmlb',
     symbol_prefix : 'xb',
     identifier_prefix : 'Xb',
-    export_packages : 'libxmlb',
+    export_packages : 'xmlb',
     header : 'xmlb.h',
     dependencies : [
       gio,
@@ -207,11 +215,14 @@ if get_option('tests')
       'xb-opcode.c',
       'xb-self-test.c',
       'xb-query.c',
+      'xb-query-context.c',
       'xb-silo.c',
       'xb-silo-export.c',
+      'xb-silo-node.c',
       'xb-silo-query.c',
       'xb-stack.c',
       'xb-string.c',
+      'xb-value-bindings.c',
     ],
     include_directories : [
       configinc,
