@@ -1,8 +1,15 @@
-libxmlb (0.3.2-1) UNRELEASED; urgency=medium
+libxmlb (0.3.2-1) unstable; urgency=medium
 
-  * New upstream release
+  [ Matthias Klumpp ]
+  * Upload to unstable
+  * New upstream release: 0.3.2
+  * d/copyright: Use secure URL
+  * Update symbols file
 
- -- Matthias Klumpp <mak@debian.org>  Sat, 21 Aug 2021 19:03:08 +0200
+  [ Will Thompson ]
+  * debian/control: fix typo
+
+ -- Matthias Klumpp <mak@debian.org>  Sat, 21 Aug 2021 19:05:36 +0200
 
 libxmlb (0.2.1-1) experimental; urgency=medium
 
