@@ -8,6 +8,7 @@
 
 #include <glib-object.h>
 
+#include "xb-query-context.h"
 #include "xb-silo-query.h"
 #include "xb-query.h"
 
@@ -26,6 +27,8 @@ GPtrArray	*xb_silo_query_with_root	(XbSilo		*self,
 GPtrArray	*xb_silo_query_with_root_full	(XbSilo		*self,
 						 XbNode		*n,
 						 XbQuery	*query,
+						 XbQueryContext	*context,
+						 gboolean	 first_result_only,
 						 GError		**error);
 
 G_END_DECLS

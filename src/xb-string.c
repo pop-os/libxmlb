@@ -143,7 +143,12 @@ xb_string_contains (const gchar *text, const gchar *search)
  * Searches for a fuzzy search match, ignoring search matches that are not at
  * the start of the token.
  *
+ * For example, `foo` and `baz` would match `foobar baz` but `bar` would not
+ * match the same string.
+ *
  * Returns: %TRUE if the string @search is contained in @text.
+ *
+ * Since: 0.3.0
  **/
 gboolean
 xb_string_search (const gchar *text, const gchar *search)
@@ -176,6 +181,62 @@ xb_string_search (const gchar *text, const gchar *search)
 		is_sow = FALSE;
 	}
 	return FALSE;
+}
+
+/**
+ * xb_string_searchv: (skip)
+ * @text: NULL-terminated source strings
+ * @search: NULL-terminated text tokens to search for
+ *
+ * Searches for a fuzzy search match, ignoring search matches that are not at
+ * the start of the token.
+ *
+ * For example `{"foo", "baz"}` would match with `{"wizz", "foobar"}` but
+ * `{"baz"}` would not match the same set of strings.
+ *
+ * Returns: %TRUE if the string @search is contained in @text.
+ *
+ * Since: 0.3.0
+ **/
+gboolean
+xb_string_searchv (const gchar **text, const gchar **search)
+{
+	if (text == NULL || text[0] == NULL || text[0][0] == '\0')
+		return FALSE;
+	if (search == NULL || search[0] == NULL || search[0][0] == '\0')
+		return FALSE;
+	for (guint j = 0; text[j] != NULL; j++) {
+		for (guint i = 0; search[i] != NULL; i++) {
+			if (g_str_has_prefix (text[j], search[i]))
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+/**
+ * xb_string_token_valid: (skip)
+ * @text: The potential token
+ * @see_also: xb_builder_node_tokenize_text(), xb_builder_node_get_tokens()
+ *
+ * This is typically used to eliminate tokens which are not useful for search
+ * matching.
+ *
+ * For instance, tokens like `in` and `at` are less than three characters in
+ * size and should be rejected.
+ *
+ * Returns: %TRUE if the token should be used for searching.
+ **/
+gboolean
+xb_string_token_valid (const gchar *text)
+{
+	if (text == NULL)
+		return FALSE;
+	if (text[0] == '\0' ||
+	    text[1] == '\0' ||
+	    text[2] == '\0')
+		return FALSE;
+	return TRUE;
 }
 
 /**
