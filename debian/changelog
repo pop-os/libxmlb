@@ -1,8 +1,11 @@
-libxmlb (0.3.5-1) UNRELEASED; urgency=medium
+libxmlb (0.3.5-1) unstable; urgency=medium
 
-  * New upstream release
+  * New upstream release: 0.3.5
+  * Bump standards version (no changes needed)
+  * Add build dependency on liblzma
+  * Update symbols file
 
- -- Matthias Klumpp <mak@debian.org>  Thu, 02 Dec 2021 23:06:00 +0100
+ -- Matthias Klumpp <mak@debian.org>  Thu, 02 Dec 2021 22:38:52 +0100
 
 libxmlb (0.3.2-1) unstable; urgency=medium
 
