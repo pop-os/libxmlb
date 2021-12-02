@@ -14,7 +14,7 @@ Build-Depends: debhelper-compat (= 13),
                libglib2.0-doc,
                meson (>= 0.52.0),
                shared-mime-info
-Standards-Version: 4.5.1
+Standards-Version: 4.6.0
 Homepage: https://github.com/hughsie/libxmlb
 Vcs-Git: https://salsa.debian.org/efi-team/libxmlb.git
 Vcs-Browser: https://salsa.debian.org/efi-team/libxmlb
