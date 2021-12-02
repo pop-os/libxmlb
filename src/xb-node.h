@@ -49,6 +49,28 @@ typedef enum {
 	XB_NODE_EXPORT_FLAG_LAST
 } XbNodeExportFlags;
 
+typedef struct
+{
+  /*< private >*/
+  gpointer	dummy1;
+  guint8	dummy2;
+  gpointer	dummy3;
+  gpointer	dummy4;
+  gpointer	dummy5;
+  gpointer	dummy6;
+} XbNodeAttrIter;
+
+typedef struct
+{
+  /*< private >*/
+  gpointer	dummy1;
+  gpointer	dummy2;
+  gboolean	dummy3;
+  gpointer	dummy4;
+  gpointer	dummy5;
+  gpointer	dummy6;
+} XbNodeChildIter;
+
 typedef gboolean (*XbNodeTransmogrifyFunc)	(XbNode		*self,
 						 gpointer	 user_data);
 gboolean	 xb_node_transmogrify		(XbNode		*self,
@@ -80,5 +102,17 @@ guint64		 xb_node_get_attr_as_uint	(XbNode		*self,
 						 const gchar	*name);
 guint		 xb_node_get_depth		(XbNode		*self);
 
+void		 xb_node_attr_iter_init		(XbNodeAttrIter	*iter,
+						 XbNode		*self);
+gboolean	 xb_node_attr_iter_next		(XbNodeAttrIter	*iter,
+						 const gchar	**name,
+						 const gchar	**value);
+
+void		 xb_node_child_iter_init	(XbNodeChildIter	*iter,
+						 XbNode			*self);
+gboolean	 xb_node_child_iter_next	(XbNodeChildIter	*iter,
+						 XbNode			**child);
+gboolean	xb_node_child_iter_loop		(XbNodeChildIter	*iter,
+						 XbNode			**child);
 
 G_END_DECLS

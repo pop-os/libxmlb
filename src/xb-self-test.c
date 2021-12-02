@@ -478,6 +478,40 @@ xb_builder_custom_mime_func (void)
 }
 
 static void
+xb_builder_source_lzma_func (void)
+{
+	gboolean ret;
+	g_autofree gchar *path = NULL;
+	g_autofree gchar *tmp_xmlb = g_build_filename (g_get_tmp_dir (), "temp.xmlb", NULL);
+	g_autoptr(GError) error = NULL;
+	g_autoptr(GFile) file = NULL;
+	g_autoptr(GFile) file_src = NULL;
+	g_autoptr(XbBuilder) builder = xb_builder_new ();
+	g_autoptr(XbBuilderSource) source = xb_builder_source_new ();
+	g_autoptr(XbSilo) silo = NULL;
+
+	/* import a source file */
+	path = g_test_build_filename (G_TEST_DIST, "test.xml.xz", NULL);
+	file_src = g_file_new_for_path (path);
+	if (!g_file_query_exists (file_src, NULL)) {
+		g_test_skip ("does not work in subproject test");
+		return;
+	}
+	ret = xb_builder_source_load_file (source, file_src,
+					   XB_BUILDER_SOURCE_FLAG_NONE,
+					   NULL, &error);
+	g_assert_no_error (error);
+	g_assert_true (ret);
+	xb_builder_import_source (builder, source);
+	file = g_file_new_for_path (tmp_xmlb);
+	silo = xb_builder_ensure (builder, file,
+				  XB_BUILDER_COMPILE_FLAG_NONE,
+				  NULL, &error);
+	g_assert_no_error (error);
+	g_assert_nonnull (silo);
+}
+
+static void
 xb_builder_chained_adapters_func (void)
 {
 	gboolean ret;
@@ -1242,6 +1276,17 @@ xb_builder_fixup_tokenize_cb (XbBuilderFixup *self,
 	return TRUE;
 }
 
+static gboolean
+xb_builder_fixup_strip_inner_cb (XbBuilderFixup *self,
+				 XbBuilderNode *bn,
+				 gpointer user_data,
+				 GError **error)
+{
+	if (xb_builder_node_get_first_child (bn) == NULL)
+		xb_builder_node_add_flag (bn, XB_BUILDER_NODE_FLAG_STRIP_TEXT);
+	return TRUE;
+}
+
 static void
 xb_xpath_func (void)
 {
@@ -1257,6 +1302,7 @@ xb_xpath_func (void)
 	g_autoptr(XbNode) n3 = NULL;
 	g_autoptr(XbBuilder) builder = xb_builder_new ();
 	g_autoptr(XbBuilderFixup) fixup = NULL;
+	g_autoptr(XbBuilderFixup) fixup2 = NULL;
 	g_autoptr(XbBuilderSource) source = xb_builder_source_new ();
 	g_autoptr(XbSilo) silo = NULL;
 	const gchar *xml =
@@ -1265,7 +1311,7 @@ xb_xpath_func (void)
 	"    <csum type=\"sha1\">dead</csum>\n"
 	"  </header>\n"
 	"  <component type=\"desktop\">\n"
-	"    <id>gimp.desktop</id>\n"
+	"    <id> gimp.desktop </id>\n"
 	"    <id>org.gnome.Gimp.desktop</id>\n"
 	"    <name>Mêẞ</name>\n"
 	"    <custom>\n"
@@ -1280,6 +1326,10 @@ xb_xpath_func (void)
 	/* tokenize specific fields */
 	fixup = xb_builder_fixup_new ("TextTokenize", xb_builder_fixup_tokenize_cb, NULL, NULL);
 	xb_builder_source_add_fixup (source, fixup);
+
+	/* strip inner nodes without children */
+	fixup2 = xb_builder_fixup_new ("TextStripInner", xb_builder_fixup_strip_inner_cb, NULL, NULL);
+	xb_builder_source_add_fixup (source, fixup2);
 
 	/* import from XML */
 	ret = xb_builder_source_load_xml (source, xml, XB_BUILDER_SOURCE_FLAG_NONE, &error);
@@ -1994,6 +2044,24 @@ xb_builder_multiple_roots_func (void)
 }
 
 static void
+xb_builder_single_root_func (void)
+{
+	gboolean ret;
+	g_autoptr(GError) error = NULL;
+	g_autoptr(XbBuilder) builder = NULL;
+	g_autoptr(XbSilo) silo = NULL;
+
+	/* import from XML */
+	builder = xb_builder_new ();
+	ret = xb_test_import_xml (builder, "<tag>value2</tag><tag>value3</tag>", &error);
+	g_assert_no_error (error);
+	g_assert_true (ret);
+	silo = xb_builder_compile (builder, XB_BUILDER_COMPILE_FLAG_SINGLE_ROOT, NULL, &error);
+	g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA);
+	g_assert_null (silo);
+}
+
+static void
 xb_builder_node_func (void)
 {
 	g_autofree gchar *xml = NULL;
@@ -2005,6 +2073,9 @@ xb_builder_node_func (void)
 	g_autoptr(XbBuilderNode) component = NULL;
 	g_autoptr(XbBuilderNode) components = NULL;
 	g_autoptr(XbBuilderNode) id = NULL;
+	g_autoptr(XbBuilderNode) description = xb_builder_node_new ("description");
+	g_autoptr(XbBuilderNode) em = xb_builder_node_new ("em");
+	g_autoptr(XbBuilderNode) empty = NULL;
 	g_autoptr(XbBuilderNode) root = xb_builder_node_new (NULL);
 	g_autoptr(XbSilo) silo = NULL;
 
@@ -2027,6 +2098,18 @@ xb_builder_node_func (void)
 	xb_builder_node_insert_text (component, "icon", "dave", "type", "stock", NULL);
 	g_assert_cmpint (xb_builder_node_depth (id), ==, 3);
 
+	xb_builder_node_add_flag (em, XB_BUILDER_NODE_FLAG_LITERAL_TEXT);
+	xb_builder_node_set_text (em, "world!", -1);
+	xb_builder_node_set_tail (em, "    ", -1);
+	xb_builder_node_add_child (description, em);
+	xb_builder_node_set_text (description, "hello ", -1);
+	xb_builder_node_add_child (component, description);
+
+	/* no text contents */
+	empty = xb_builder_node_new ("empty");
+	xb_builder_node_set_text(empty, NULL, -1);
+	xb_builder_node_set_tail(empty, NULL, -1);
+
 	/* get specific child */
 	child_by_element = xb_builder_node_get_child (components, "component", NULL);
 	g_assert_nonnull (child_by_element);
@@ -2046,9 +2129,10 @@ xb_builder_node_func (void)
 			 "<component type=\"desktop\">\n"
 			 "<id>gimp.desktop</id>\n"
 			 "<icon type=\"stock\">dave</icon>\n"
+			 "<description>hello <em>world!</em>    \n"
+			 "</description>\n"
 			 "</component>\n"
 			 "</components>\n", ==, xml_src);
-
 	/* import the doc */
 	xb_builder_import_node (builder, root);
 	silo = xb_builder_compile (builder, XB_BUILDER_COMPILE_FLAG_NONE, NULL, &error);
@@ -2064,6 +2148,8 @@ xb_builder_node_func (void)
 			 "<component type=\"desktop\">"
 			 "<id>gimp.desktop</id>"
 			 "<icon type=\"stock\">dave</icon>"
+			 "<description>hello <em>world!</em>"
+			 "</description>"
 			 "</component>"
 			 "</components>", ==, xml);
 }
@@ -2573,6 +2659,7 @@ main (int argc, char **argv)
 	g_test_add_func ("/libxmlb/builder{ignore-invalid}", xb_builder_ignore_invalid_func);
 	g_test_add_func ("/libxmlb/builder{custom-mime}", xb_builder_custom_mime_func);
 	g_test_add_func ("/libxmlb/builder{chained-adapters}", xb_builder_chained_adapters_func);
+	g_test_add_func ("/libxmlb/builder{source-lzma}", xb_builder_source_lzma_func);
 	g_test_add_func ("/libxmlb/builder-node", xb_builder_node_func);
 	g_test_add_func ("/libxmlb/builder-node{info}", xb_builder_node_info_func);
 	g_test_add_func ("/libxmlb/builder-node{literal-text}", xb_builder_node_literal_text_func);
@@ -2590,6 +2677,7 @@ main (int argc, char **argv)
 	g_test_add_func ("/libxmlb/xpath-node", xb_xpath_node_func);
 	g_test_add_func ("/libxmlb/xpath-parent-subnode", xb_xpath_parent_subnode_func);
 	g_test_add_func ("/libxmlb/multiple-roots", xb_builder_multiple_roots_func);
+	g_test_add_func ("/libxmlb/single-root", xb_builder_single_root_func);
 	if (g_test_perf ())
 		g_test_add_func ("/libxmlb/threading", xb_threading_func);
 	if (g_test_perf ())

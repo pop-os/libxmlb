@@ -83,6 +83,10 @@ xb_builder_node_add_flag (XbBuilderNode *self, XbBuilderNodeFlags flag)
 	if ((priv->flags & flag) != 0)
 		return;
 
+	/* do in-place */
+	if ((flag & XB_BUILDER_NODE_FLAG_STRIP_TEXT) > 0 && priv->text != NULL)
+		g_strstrip (priv->text);
+
 	priv->flags |= flag;
 	for (guint i = 0; priv->children != NULL && i < priv->children->len; i++) {
 		XbBuilderNode *c = g_ptr_array_index (priv->children, i);
@@ -252,6 +256,10 @@ xb_builder_node_parse_literal_text (XbBuilderNode *self, const gchar *text, gssi
 	g_auto(GStrv) split = NULL;
 	gsize text_len_safe;
 
+	/* sanity check */
+	if (text == NULL)
+		return NULL;
+
 	/* we know this has been pre-fixed */
 	text_len_safe = text_len >= 0 ? (gsize) text_len : strlen (text);
 	if (xb_builder_node_has_flag (self, XB_BUILDER_NODE_FLAG_LITERAL_TEXT))
@@ -368,7 +376,7 @@ xb_builder_node_tokenize_text (XbBuilderNode *self)
 /**
  * xb_builder_node_set_text:
  * @self: a #XbBuilderNode
- * @text: a string
+ * @text: (allow-none): a string
  * @text_len: length of @text, or -1 if @text is NUL terminated
  *
  * Sets the text on the builder node.
@@ -381,12 +389,15 @@ xb_builder_node_set_text (XbBuilderNode *self, const gchar *text, gssize text_le
 	XbBuilderNodePrivate *priv = GET_PRIVATE (self);
 
 	g_return_if_fail (XB_IS_BUILDER_NODE (self));
-	g_return_if_fail (text != NULL);
 
 	/* old data */
 	g_free (priv->text);
 	priv->text = xb_builder_node_parse_literal_text (self, text, text_len);
 	priv->flags |= XB_BUILDER_NODE_FLAG_HAS_TEXT;
+
+	/* strip before tokenization */
+	if ((priv->flags & XB_BUILDER_NODE_FLAG_STRIP_TEXT) > 0 && priv->text != NULL)
+		g_strstrip (priv->text);
 
 	/* tokenize */
 	if (priv->flags & XB_BUILDER_NODE_FLAG_TOKENIZE_TEXT)
@@ -396,7 +407,7 @@ xb_builder_node_set_text (XbBuilderNode *self, const gchar *text, gssize text_le
 /**
  * xb_builder_node_set_tail:
  * @self: a #XbBuilderNode
- * @tail: a string
+ * @tail: (allow-none): a string
  * @tail_len: length of @tail, or -1 if @tail is NUL terminated
  *
  * Sets the tail on the builder node.
@@ -409,7 +420,6 @@ xb_builder_node_set_tail (XbBuilderNode *self, const gchar *tail, gssize tail_le
 	XbBuilderNodePrivate *priv = GET_PRIVATE (self);
 
 	g_return_if_fail (XB_IS_BUILDER_NODE (self));
-	g_return_if_fail (tail != NULL);
 
 	/* old data */
 	g_free (priv->tail);
@@ -1139,12 +1149,6 @@ xb_builder_node_export_helper (XbBuilderNode *self,
 		helper->level--;
 	}
 
-	/* add any tail if it exists */
-	if (priv->tail != NULL) {
-		g_autofree gchar *tail = xb_string_xml_escape (priv->tail);
-		g_string_append (helper->xml, tail);
-	}
-
 	/* add closing tag */
 	if ((helper->flags & XB_NODE_EXPORT_FLAG_FORMAT_INDENT) > 0 &&
 	    priv->text == NULL) {
@@ -1152,6 +1156,13 @@ xb_builder_node_export_helper (XbBuilderNode *self,
 			g_string_append (helper->xml, "  ");
 	}
 	g_string_append_printf (helper->xml, "</%s>", priv->element);
+
+	/* add any tail if it exists */
+	if (priv->tail != NULL) {
+		g_autofree gchar *tail = xb_string_xml_escape (priv->tail);
+		g_string_append (helper->xml, tail);
+	}
+
 	if (helper->flags & XB_NODE_EXPORT_FLAG_FORMAT_MULTILINE)
 		g_string_append (helper->xml, "\n");
 	return TRUE;
