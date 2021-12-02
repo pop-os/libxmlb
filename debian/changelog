@@ -1,3 +1,9 @@
+libxmlb (0.3.5-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Matthias Klumpp <mak@debian.org>  Thu, 02 Dec 2021 23:06:00 +0100
+
 libxmlb (0.3.2-1) unstable; urgency=medium
 
   [ Matthias Klumpp ]
