@@ -12,6 +12,7 @@ Build-Depends: debhelper-compat (= 13),
                libgirepository1.0-dev,
                libglib2.0-dev,
                libglib2.0-doc,
+               liblzma-dev,
                meson (>= 0.52.0),
                shared-mime-info
 Standards-Version: 4.6.0
