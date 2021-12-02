@@ -1,5 +1,5 @@
 project('libxmlb', 'c',
-  version : '0.3.2',
+  version : '0.3.6',
   license : 'LGPL-2.1+',
   meson_version : '>=0.47.0',
   default_options : ['warning_level=2', 'c_std=c99'],
@@ -116,6 +116,7 @@ endif
 
 gio = dependency('gio-2.0', version : '>= 2.45.8')
 giounix = dependency('gio-unix-2.0', version : '>= 2.45.8', required: false)
+lzma = dependency('liblzma')
 if giounix.found()
   conf.set('HAVE_GIO_UNIX', '1')
 endif
@@ -128,6 +129,7 @@ add_project_arguments('-DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_58', language: 
 
 libxmlb_deps = [
   gio,
+  lzma,
 ]
 
 # support stemming of search tokens

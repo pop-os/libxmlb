@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   build-linux:
@@ -21,18 +21,18 @@ jobs:
       - run: docker run -t -v `pwd`:/build libxmlb-${{ matrix.distro }} ./contrib/ci/build-${{ matrix.distro }}.sh
 
   build-freebsd:
-    runs-on: macos-latest
+    runs-on: macos-10.15
 
     steps:
     - name: Checkout
       uses: actions/checkout@v2
     - name: Build
       id: test
-      uses: vmactions/freebsd-vm@v0.1.4
+      uses: vmactions/freebsd-vm@v0.1.5
       with:
         usesh: true
         mem: 8192
         prepare: |
-          pkg install -y git python3 glib meson pkgconf gobject-introspection gtk-doc
+          pkg install -y git python3 glib meson pkgconf gobject-introspection gtk-doc lzma
         sync: rsync
         run: ./contrib/ci/build-debian.sh

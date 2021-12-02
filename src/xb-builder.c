@@ -260,6 +260,17 @@ xb_builder_compile_source (XbBuilderCompileHelper *helper,
 	if (!xb_builder_source_fixup (source, root_tmp, error))
 		return FALSE;
 
+	/* a single root with no siblings was required */
+	if (helper->compile_flags & XB_BUILDER_COMPILE_FLAG_SINGLE_ROOT) {
+		if (xb_builder_node_get_children (root_tmp)->len > 1) {
+			g_set_error_literal (error,
+					     G_IO_ERROR,
+					     G_IO_ERROR_INVALID_DATA,
+					     "A root node without siblings was required");
+			return FALSE;
+		}
+	}
+
 	/* this is something we can query with later */
 	info = xb_builder_source_get_info (source);
 	if (info != NULL) {
@@ -377,7 +388,7 @@ xb_builder_strtab_tokens_cb (XbBuilderNode *bn, gpointer user_data)
 		return FALSE;
 	if (tokens == NULL)
 		return FALSE;
-	for (guint i = 0; i < tokens->len; i++) {
+	for (guint i = 0; i < MIN(tokens->len, XB_OPCODE_TOKEN_MAX); i++) {
 		const gchar *tmp = g_ptr_array_index (tokens, i);
 		if (tmp == NULL)
 			continue;
@@ -482,7 +493,7 @@ xb_builder_nodetab_write_node (XbBuilderNodetabHelper *helper, XbBuilderNode *bn
 	};
 
 	/* add tokens */
-	if (xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_TOKENIZE_TEXT))
+	if (token_idxs != NULL)
 		sn.flags |= XB_SILO_NODE_FLAG_IS_TOKENIZED;
 
 	/* if the node had no children and the text is just whitespace then
@@ -905,6 +916,9 @@ xb_builder_compile (XbBuilder *self, XbBuilderCompileFlags flags, GCancellable *
  * If @silo is being used by a query (e.g. in another thread) then all node
  * data is immediately invalid.
  *
+ * The returned #XbSilo will use the thread-default main context at the time of
+ * calling this function for its future signal emissions.
+ *
  * Returns: (transfer full): a #XbSilo, or %NULL for error
  *
  * Since: 0.1.0
@@ -1098,6 +1112,10 @@ xb_builder_init (XbBuilder *self)
  * xb_builder_new:
  *
  * Creates a new builder.
+ *
+ * The #XbSilo returned by the methods of this #XbBuilder will use the
+ * thread-default main context at the time of calling this function for its
+ * future signal emissions.
  *
  * Returns: a new #XbBuilder
  *
