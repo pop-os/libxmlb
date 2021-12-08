@@ -1,8 +1,8 @@
-libxmlb (0.3.6-1) UNRELEASED; urgency=medium
+libxmlb (0.3.6-1) unstable; urgency=medium
 
-  * New upstream release
+  * New upstream bugfix release: 0.3.6
 
- -- Matthias Klumpp <mak@debian.org>  Wed, 08 Dec 2021 13:41:14 +0100
+ -- Matthias Klumpp <mak@debian.org>  Wed, 08 Dec 2021 14:42:14 +0100
 
 libxmlb (0.3.5-1) unstable; urgency=medium
 
