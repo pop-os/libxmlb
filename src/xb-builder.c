@@ -388,7 +388,7 @@ xb_builder_strtab_tokens_cb (XbBuilderNode *bn, gpointer user_data)
 		return FALSE;
 	if (tokens == NULL)
 		return FALSE;
-	for (guint i = 0; i < tokens->len; i++) {
+	for (guint i = 0; i < MIN(tokens->len, XB_OPCODE_TOKEN_MAX); i++) {
 		const gchar *tmp = g_ptr_array_index (tokens, i);
 		if (tmp == NULL)
 			continue;
@@ -493,7 +493,7 @@ xb_builder_nodetab_write_node (XbBuilderNodetabHelper *helper, XbBuilderNode *bn
 	};
 
 	/* add tokens */
-	if (xb_builder_node_has_flag (bn, XB_BUILDER_NODE_FLAG_TOKENIZE_TEXT))
+	if (token_idxs != NULL)
 		sn.flags |= XB_SILO_NODE_FLAG_IS_TOKENIZED;
 
 	/* if the node had no children and the text is just whitespace then
