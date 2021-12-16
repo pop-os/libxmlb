@@ -1,3 +1,10 @@
+libxmlb (0.3.6-2) unstable; urgency=medium
+
+  * Add dependency on liblzma-dev to dev package
+    - This fulfills the private pkgconf requirement on liblzma
+
+ -- Matthias Klumpp <mak@debian.org>  Thu, 16 Dec 2021 22:35:28 +0100
+
 libxmlb (0.3.6-1) unstable; urgency=medium
 
   * New upstream bugfix release: 0.3.6
