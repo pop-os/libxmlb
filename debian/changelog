@@ -1,3 +1,9 @@
+libxmlb (0.3.8-1) unstable; urgency=medium
+
+  * New upstream release: 0.3.8
+
+ -- Matthias Klumpp <mak@debian.org>  Sun, 10 Apr 2022 21:46:50 +0200
+
 libxmlb (0.3.6-2) unstable; urgency=medium
 
   * Add dependency on liblzma-dev to dev package
