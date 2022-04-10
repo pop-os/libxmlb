@@ -1,5 +1,5 @@
 project('libxmlb', 'c',
-  version : '0.3.6',
+  version : '0.3.8',
   license : 'LGPL-2.1+',
   meson_version : '>=0.47.0',
   default_options : ['warning_level=2', 'c_std=c99'],
@@ -25,7 +25,7 @@ lt_version = '@0@.@1@.@2@'.format(lt_current, lt_age, lt_revision)
 
 configinc = include_directories('.')
 
-# get suported warning flags
+# get supported warning flags
 warning_flags = [
   '-Wno-aggregate-return',
   '-Wunused',
@@ -150,8 +150,7 @@ configure_file(
   configuration : conf
 )
 
-python = import('python')
-python3 = python.find_installation()
+python3 = find_program('python3')
 
 subdir('data')
 subdir('src')
