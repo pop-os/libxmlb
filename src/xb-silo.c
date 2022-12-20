@@ -334,6 +334,12 @@ xb_silo_to_string(XbSilo *self, GError **error)
 	g_return_val_if_fail(XB_IS_SILO(self), NULL);
 	g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
+	/* sanity check */
+	if (hdr->strtab > priv->datasz) {
+		g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "strtab invalid");
+		return NULL;
+	}
+
 	g_string_append_printf(str, "magic:        %08x\n", (guint)hdr->magic);
 	g_string_append_printf(str, "guid:         %s\n", priv->guid);
 	g_string_append_printf(str, "strtab:       @%" G_GUINT32_FORMAT "\n", hdr->strtab);
@@ -1022,8 +1028,7 @@ xb_silo_load_from_file(XbSilo *self,
 
 	g_hash_table_remove_all(priv->strtab_tags);
 	g_clear_pointer(&priv->guid, g_free);
-	if (priv->mmap != NULL)
-		g_mapped_file_unref(priv->mmap);
+	g_clear_pointer(&priv->mmap, g_mapped_file_unref);
 
 	fn = g_file_get_path(file);
 	priv->mmap = g_mapped_file_new(fn, FALSE, error);

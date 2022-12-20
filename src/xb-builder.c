@@ -254,6 +254,15 @@ xb_builder_compile_source(XbBuilderCompileHelper *helper,
 	if (!xb_builder_source_fixup(source, root_tmp, error))
 		return FALSE;
 
+	/* check to see if the root was ignored */
+	if (xb_builder_node_has_flag(root_tmp, XB_BUILDER_NODE_FLAG_IGNORE)) {
+		g_set_error_literal(error,
+				    G_IO_ERROR,
+				    G_IO_ERROR_INVALID_DATA,
+				    "root node cannot be ignored");
+		return FALSE;
+	}
+
 	/* a single root with no siblings was required */
 	if (helper->compile_flags & XB_BUILDER_COMPILE_FLAG_SINGLE_ROOT) {
 		if (xb_builder_node_get_children(root_tmp)->len > 1) {
@@ -271,7 +280,8 @@ xb_builder_compile_source(XbBuilderCompileHelper *helper,
 		children = xb_builder_node_get_children(helper->current);
 		for (guint i = 0; i < children->len; i++) {
 			XbBuilderNode *bn = g_ptr_array_index(children, i);
-			xb_builder_node_add_child(bn, info);
+			if (!xb_builder_node_has_flag(bn, XB_BUILDER_NODE_FLAG_IGNORE))
+				xb_builder_node_add_child(bn, info);
 		}
 	}
 
@@ -432,7 +442,7 @@ xb_builder_xml_lang_prio_cb(XbBuilderNode *bn, gpointer user_data)
 	for (guint i = 0; i < nodes->len; i++) {
 		XbBuilderNode *bn2 = g_ptr_array_index(nodes, i);
 		if (xb_builder_node_get_priority(bn2) < prio_best)
-			g_ptr_array_add(nodes_to_destroy, bn2);
+			g_ptr_array_add(nodes_to_destroy, g_object_ref(bn2));
 
 		/* never visit this node again */
 		xb_builder_node_set_priority(bn2, -2);
@@ -755,7 +765,7 @@ xb_builder_compile(XbBuilder *self,
 	XbBuilderNodetabHelper nodetab_helper = {
 	    .buf = NULL,
 	};
-	g_autoptr(GPtrArray) nodes_to_destroy = g_ptr_array_new();
+	g_autoptr(GPtrArray) nodes_to_destroy = g_ptr_array_new_with_free_func((GDestroyNotify)g_object_unref);
 	g_autoptr(GTimer) timer = xb_silo_start_profile(priv->silo);
 	g_autoptr(XbBuilderCompileHelper) helper = NULL;
 
@@ -803,6 +813,10 @@ xb_builder_compile(XbBuilder *self,
 			root = g_object_ref(helper->root);
 		}
 
+		/* watch the source */
+		if (!xb_builder_watch_source(self, source, cancellable, error))
+			return NULL;
+
 		if (priv->profile_flags & XB_SILO_PROFILE_FLAG_DEBUG)
 			g_debug("compiling %s…", source_guid);
 		if (!xb_builder_compile_source(helper, source, root, cancellable, &error_local)) {
@@ -818,10 +832,6 @@ xb_builder_compile(XbBuilder *self,
 						   source_guid);
 			return NULL;
 		}
-
-		/* watch the source */
-		if (!xb_builder_watch_source(self, source, cancellable, error))
-			return NULL;
 	}
 
 	/* run any node functions */
@@ -981,6 +991,10 @@ xb_builder_ensure(XbBuilder *self,
 	if (flags & XB_BUILDER_COMPILE_FLAG_WATCH_BLOB)
 		load_flags |= XB_SILO_LOAD_FLAG_WATCH_BLOB;
 
+	/* ensure all the sources are watched */
+	if (!xb_builder_watch_sources(self, cancellable, error))
+		return NULL;
+
 	/* profile new silo if needed */
 	xb_silo_set_profile_flags(silo_tmp, priv->profile_flags);
 
@@ -1014,19 +1028,16 @@ xb_builder_ensure(XbBuilder *self,
 		    (flags & XB_BUILDER_COMPILE_FLAG_IGNORE_GUID) > 0) {
 			g_autoptr(GBytes) blob = xb_silo_get_bytes(silo_tmp);
 
-			g_debug("loading silo with file contents");
-			if (!xb_silo_load_from_bytes(priv->silo, blob, load_flags, error))
-				return NULL;
-
-			/* ensure all the sources are watched */
-			if (!xb_builder_watch_sources(self, cancellable, error))
-				return NULL;
-
 			/* ensure backing file is watched for changes */
 			if (flags & XB_BUILDER_COMPILE_FLAG_WATCH_BLOB) {
 				if (!xb_silo_watch_file(priv->silo, file, cancellable, error))
 					return NULL;
 			}
+
+			g_debug("loading silo with file contents");
+			if (!xb_silo_load_from_bytes(priv->silo, blob, load_flags, error))
+				return NULL;
+
 			return g_object_ref(priv->silo);
 		}
 	}
