@@ -1,4 +1,4 @@
-version=3
+version=4
+
 opts=filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/libxmlb-$1\.tar\.gz/ \
 https://github.com/hughsie/libxmlb/tags .*/v?(\d\S*)\.tar\.gz
-
