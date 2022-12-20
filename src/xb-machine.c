@@ -391,7 +391,7 @@ xb_machine_parse_add_text(XbMachine *self,
 	/* indexed text */
 	if (text_len >= 3) {
 		if (str[0] == '$' && str[1] == '\'' && str[text_len - 1] == '\'') {
-			gchar *tmp = g_strndup(str + 2, text_len - 3);
+			g_autofree gchar *tmp = g_strndup(str + 2, text_len - 3);
 			XbOpcode *opcode;
 			if (!xb_stack_push(opcodes, &opcode, error))
 				return FALSE;
@@ -1061,8 +1061,7 @@ xb_machine_run_with_bindings(XbMachine *self,
 			    tmp);
 		return FALSE;
 	}
-	if (result != NULL)
-		*result = xb_opcode_get_val(&opcode_success);
+	*result = xb_opcode_get_val(&opcode_success);
 
 	/* success */
 	return TRUE;
